@@ -134,13 +134,21 @@ class Avatar {
   }
 
   void sky(float t, float pulse) {
-    for (int i = 0; i < 180; ++i) {
-      const float angle = i * pi / 90;
+    for (int i = 0; i < 360; ++i) {
+      const float angle = i * pi / 180;
       const float x = std::cos(angle), y = std::sin(angle);
-      dot(233 + int(210 * x), 233 + int(210 * y), 137, 99, 44, i % 15 == 0 ? .82f : .35f, 0);
-      dot(233 + int(149 * x), 208 + int(149 * y), 66, 93, 158, .42f + .30f * pulse, 0);
+      dot(233 + int(210 * x), 233 + int(210 * y), 213, 150, 71, i % 30 == 0 ? .98f : .63f, 0);
+      dot(233 + int(149 * x), 208 + int(149 * y), 81, 115, 189, .62f + .30f * pulse, 0);
       dot(233 + int((116 + 48 * pulse) * x), 373 + int((13 + 14 * pulse) * y),
           239, 154, 68, .25f + .27f * (1 + y) + .12f * pulse, 0);
+    }
+    // Engraved full moon above the character.
+    for (int y = -16; y <= 16; y += 2) {
+      for (int x = -16; x <= 16; x += 2) {
+        if (x * x + y * y > 256) continue;
+        const float light = .65f + .13f * std::cos(x * .8f + y * .37f);
+        dot(233 + x, 62 + y, 248, 181, 112, light, 0);
+      }
     }
     uint32_t seed = 1097;
     for (int i = 0; i < 112; ++i) {

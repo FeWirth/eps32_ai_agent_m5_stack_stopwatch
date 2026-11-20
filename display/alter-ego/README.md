@@ -2,6 +2,8 @@
 
 Das Punktmodell übernimmt die goldene Silhouette, den geteilten Schnurrbart, die zwei schwebenden Löffel und den Sternenkreis aus der [gewählten Himmelsgravur](../references/07-ausgewaehlte-himmelsgravur.png). Die Punkte liegen auf modellierten Flächen mit unterschiedlichen Tiefen. Bei einer Drehung verschieben sich Stirn, Nase und Bart dadurch unterschiedlich stark.
 
+Der Hintergrund übernimmt den dichteren goldenen Außenring, den helleren blauen Innenring und den Vollmond aus [Mary](../alter_ego_mary/README.md).
+
 ## Vorschau auf dem Mac
 
 Aus dem Projektstamm:

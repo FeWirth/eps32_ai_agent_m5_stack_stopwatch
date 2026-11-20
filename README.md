@@ -4,11 +4,11 @@ Ziel ist ein kleiner Avatar auf der ESP32-S3-Uhr, über den man mit einem Hermes
 
 ## Projektstand
 
-**20. November 2026 · Meilenstein 1** — Zwei interaktive Avatare für das runde 466 × 466 AMOLED sind gebaut und wurden nacheinander auf dieselbe StopWatch geflasht. Zuletzt wurde Himmelsgravur wieder aufgespielt.
+**21. November 2026** — Auf der StopWatch ist Himmelsgravur mit dem aus Mary übernommenen, helleren Sternenkreis und Vollmond installiert. Beide interaktiven Avatare sind für das runde 466 × 466 AMOLED verfügbar.
 
 | Bereich | Status | Nachweis oder offene Arbeit |
 | --- | --- | --- |
-| Himmelsgravur | Auf der StopWatch installiert | Firmware geflasht, alle Schreibvorgänge verifiziert und Neustart ausgelöst. [Renderer und Build](display/alter-ego/) |
+| Himmelsgravur | Auf der StopWatch installiert | Aktualisierte Firmware per Prüfsumme verifiziert und die Uhr neu gestartet. Die Darstellung wurde in der Mac-Vorschau geprüft. [Renderer und Build](display/alter-ego/) |
 | Mary / Piepi | Auf der StopWatch erprobt | Mac-Vorschau gebaut, ESP32-S3-Firmware verifiziert und Funktion auf dem Gerät bestätigt. [Renderer und Build](display/alter_ego_mary/) |
 | Hermes über lokales WLAN | Offen | Agent und StopWatch verbinden und den vollständigen Gesprächsablauf testen. |
 | Bluetooth LE als Rückfall | Offen | Automatischen Wechsel zu Bluetooth und zurück zu WLAN umsetzen und testen. |

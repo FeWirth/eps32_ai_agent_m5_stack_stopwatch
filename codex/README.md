@@ -1,6 +1,6 @@
 # Projektübergabe
 
-Stand vom 20. November 2026. Bei einer Übernahme zuerst den [Projektstand](../README.md), die [Projektziele](../goal.md) und [AGENTS.md](../AGENTS.md) lesen. Bei UI-Arbeit gilt zusätzlich [ui_elements/README.md](../ui_elements/README.md).
+Stand vom 21. November 2026. Bei einer Übernahme zuerst den [Projektstand](../README.md), die [Projektziele](../goal.md) und [AGENTS.md](../AGENTS.md) lesen. Bei UI-Arbeit gilt zusätzlich [ui_elements/README.md](../ui_elements/README.md).
 
 ## Architektur und aktueller Stand
 
@@ -8,6 +8,7 @@ Stand vom 20. November 2026. Bei einer Übernahme zuerst den [Projektstand](../R
 - Himmelsgravur (`display/alter-ego`) und Mary (`display/alter_ego_mary`) besitzen je einen C++-Renderer in `avatar.hpp`. `preview.mm` verwendet denselben Renderer in einer AppKit-Vorschau. Ziehen dreht das Modell und Drücken erzeugt einen Lichtimpuls.
 - Beide ESP32-Buildskripte setzen `HG_ALTER_EGO_DIR`. Das SDK bindet den jeweiligen Header über `firmware/esp32/main/CMakeLists.txt` ein. In `main.cpp` startet die Demo nach Display- und Touch-Initialisierung und übernimmt die Anzeige und Touch-Ereignisse.
 - Mary wurde auf der Uhr geflasht und vom Benutzer als funktionierend bestätigt. Danach wurde auf Wunsch wieder Himmelsgravur verifiziert geflasht und das Gerät neu gestartet.
+- Der Himmelsgravur-Hintergrund verwendet die aus Mary übernommenen Ringparameter und den Vollmond. Die Änderung wurde in der Mac-Vorschau kontrolliert und als ESP32-Firmware gebaut. Am 21. November wurde dieser Build auf die StopWatch geflasht. Esptool bestätigte die geschriebenen Daten per Prüfsumme und löste einen Neustart aus.
 - Der SDK-Quellcode liegt inklusive Lizenz und Hinweisen unter `inspiration/hermes-gadget-sdk`. Upstream ist [allinnb/hermes-gadget-sdk](https://github.com/allinnb/hermes-gadget-sdk) auf Commit `82c079a06cbe1f778a06c0b0f6e95c2c7af0bf4c`. Die projektspezifischen Änderungen befinden sich in den beiden genannten Dateien unter `firmware/esp32/main`.
 
 ## Bauen und aufs Gerät bringen
