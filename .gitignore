@@ -1,0 +1,15 @@
+# macOS and local metadata
+._*
+.DS_Store
+.local/
+
+# Generated output and raw device backups
+build/
+display/alter-ego/backups/
+__pycache__/
+*.pyc
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
