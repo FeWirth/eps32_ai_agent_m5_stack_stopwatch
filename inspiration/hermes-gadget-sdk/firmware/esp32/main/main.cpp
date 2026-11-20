@@ -20,6 +20,9 @@
 #endif
 #if CONFIG_HG_BOARD_M5STACK_STOPWATCH && defined(HG_ALTER_EGO)
 #include "avatar.hpp"
+#ifdef HG_ALTER_EGO_SPEECH_BUBBLE
+#include "stopwatch_clock.hpp"
+#endif
 #endif
 #if SOC_MIPI_DSI_SUPPORTED
 #include "esp_ldo_regulator.h"
@@ -30,13 +33,21 @@ namespace {
 const char* TAG = "hg.main";
 
 #if CONFIG_HG_BOARD_M5STACK_STOPWATCH && defined(HG_ALTER_EGO)
-void run_alter_ego(hg::Display& display) {
+void run_alter_ego(hg::Display& display, [[maybe_unused]] i2c_master_bus_handle_t bus) {
   alter_ego::Avatar avatar;
+#ifdef HG_ALTER_EGO_SPEECH_BUBBLE
+  alter_ego::StopWatchClock wall_clock(bus);
+  wall_clock.enable_usb();
+#endif
   hgp::EspSystem clock;
   uint32_t next_frame = clock.now_ms();
   for (;;) {
     const uint32_t now = clock.now_ms();
     if (static_cast<int32_t>(now - next_frame) >= 0) {
+#ifdef HG_ALTER_EGO_SPEECH_BUBBLE
+      wall_clock.poll_usb();
+      avatar.speech().update(now, [&wall_clock] { return wall_clock.read(); });
+#endif
       if (!avatar.draw(display, now)) {
         ESP_LOGE(TAG, "Alter Ego requires a full 466 x 466 round framebuffer");
         return;
@@ -412,7 +423,7 @@ extern "C" void app_main(void) {
                      g_touch.begin(board.touch, board.pwr_key, board.encoder,
                                    board.touch.bus.sda >= 0 ? hgp::i2c::touch_bus(board.touch.bus) : i2c_bus);
 #if CONFIG_HG_BOARD_M5STACK_STOPWATCH && defined(HG_ALTER_EGO)
-  if (hal.display == &g_amoled) run_alter_ego(g_amoled);
+  if (hal.display == &g_amoled) run_alter_ego(g_amoled, i2c_bus);
 #endif
 
   hgp::diag::Parts parts;

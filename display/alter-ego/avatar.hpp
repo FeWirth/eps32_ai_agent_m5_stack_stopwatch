@@ -5,6 +5,9 @@
 #include <cstdint>
 
 #include "hg/hal.hpp"
+#include "speech_bubble.hpp"
+
+#define HG_ALTER_EGO_SPEECH_BUBBLE 1
 
 namespace alter_ego {
 inline constexpr int size = 466;
@@ -16,7 +19,10 @@ struct Point {
 
 class Avatar {
  public:
+  SpeechBubble& speech() { return speech_; }
+
   void touch(bool down, int x, int y, uint32_t now) {
+    speech_.touch(down, x, y, now);
     if (down && !held_) awakened_ = now;
     held_ = down;
     if (down) {
@@ -95,6 +101,8 @@ class Avatar {
       }
       spoon(sign, t, pulse);
     }
+    hg::Canvas canvas(pixels_, size, size, swapped_);
+    speech_.draw(canvas);
     display.flush(0, size);
     return true;
   }
@@ -180,6 +188,7 @@ class Avatar {
     }
   }
 
+  SpeechBubble speech_;
   uint16_t* pixels_ = nullptr;
   uint32_t awakened_ = uint32_t{0} - 1600u;
   bool held_ = false, swapped_ = false;

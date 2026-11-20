@@ -13,7 +13,8 @@ cat > "$app/Contents/Info.plist" <<'PLIST'
   <key>NSHighResolutionCapable</key><true/>
 </dict></plist>
 PLIST
+core=../../inspiration/hermes-gadget-sdk/firmware/core
 clang++ -std=c++17 -O2 -Wall -Wextra -Werror -fobjc-arc -framework AppKit \
-  -I ../../inspiration/hermes-gadget-sdk/firmware/core/include preview.mm \
+  -I "$core/include" preview.mm "$core/src/canvas.cpp" "$core/src/font5x7.cpp" \
   -o "$app/Contents/MacOS/Alter-Ego"
 "$app/Contents/MacOS/Alter-Ego" "$PWD/build/preview.png"

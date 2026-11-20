@@ -1,4 +1,7 @@
 #import <AppKit/AppKit.h>
+#include <ctime>
+#include <optional>
+
 #include "avatar.hpp"
 
 class Screen final : public hg::Display {
@@ -30,7 +33,14 @@ static uint32_t milliseconds() {
 
 - (NSBitmapImageRep*)renderBitmap {
   constexpr int size = alter_ego::size;
-  _avatar.draw(_screen, milliseconds());
+  const auto now = milliseconds();
+  _avatar.speech().update(now, []() -> std::optional<alter_ego::ClockTime> {
+    const auto timestamp = std::time(nullptr);
+    std::tm local{};
+    if (!localtime_r(&timestamp, &local)) return std::nullopt;
+    return alter_ego::ClockTime{local.tm_hour, local.tm_min};
+  });
+  _avatar.draw(_screen, now);
   auto* bitmap = [[NSBitmapImageRep alloc]
       initWithBitmapDataPlanes:nullptr pixelsWide:size pixelsHigh:size bitsPerSample:8
       samplesPerPixel:4 hasAlpha:YES isPlanar:NO colorSpaceName:NSDeviceRGBColorSpace
