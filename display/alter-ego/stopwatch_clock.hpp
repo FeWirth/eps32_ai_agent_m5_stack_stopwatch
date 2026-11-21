@@ -5,7 +5,6 @@
 #include <optional>
 
 #include "driver/i2c_master.h"
-#include "driver/usb_serial_jtag.h"
 #include "speech_bubble.hpp"
 
 namespace alter_ego {
@@ -24,35 +23,11 @@ class StopWatchClock {
   }
 
   ~StopWatchClock() {
-    if (usb_ready_) usb_serial_jtag_driver_uninstall();
     if (device_) i2c_master_bus_rm_device(device_);
   }
 
   StopWatchClock(const StopWatchClock&) = delete;
   StopWatchClock& operator=(const StopWatchClock&) = delete;
-
-  void enable_usb() {
-    usb_serial_jtag_driver_config_t config{256, 256};
-    usb_ready_ = usb_serial_jtag_driver_install(&config) == ESP_OK;
-  }
-
-  void poll_usb() {
-    if (!usb_ready_) return;
-    uint8_t buffer[64];
-    const int count = usb_serial_jtag_read_bytes(buffer, sizeof(buffer), 0);
-    for (int i = 0; i < count; ++i) {
-      const char ch = static_cast<char>(buffer[i]);
-      if (ch == '\r' || ch == '\n') {
-        if (length_ && length_ < sizeof(command_)) {
-          command_[length_] = '\0';
-          handle_command();
-        }
-        length_ = 0;
-      } else if (length_ < sizeof(command_)) {
-        command_[length_++] = ch;
-      }
-    }
-  }
 
   std::optional<ClockTime> read() const {
     constexpr uint8_t first_register = 0x10;
@@ -69,6 +44,21 @@ class StopWatchClock {
     return ClockTime{(hour >> 4) * 10 + (hour & 0xf), (minute >> 4) * 10 + (minute & 0xf)};
   }
 
+  std::string command(const char* line) const {
+    if (std::string_view(line) == "rtc") {
+      char reply[24];
+      const auto time = read();
+      if (!time) return "@rtc unset";
+      std::snprintf(reply, sizeof(reply), "@rtc %02d:%02d", time->hour, time->minute);
+      return reply;
+    }
+    int year, month, day, weekday, hour, minute, second;
+    char extra;
+    if (std::sscanf(line, "rtc %4d %2d %2d %1d %2d %2d %2d %c",
+                    &year, &month, &day, &weekday, &hour, &minute, &second, &extra) != 7) return "@rtc error";
+    return set(year, month, day, weekday, hour, minute, second) ? "@rtc ok" : "@rtc error";
+  }
+
  private:
   bool enable_backup() const {
     // StopWatch has a rechargeable RTC backup supply. Enable switchover and charging.
@@ -79,25 +69,6 @@ class StopWatchClock {
     if ((value & backup) == backup) return true;
     const uint8_t settings[] = {control1, static_cast<uint8_t>(value | backup)};
     return i2c_master_transmit(device_, settings, sizeof(settings), 20) == ESP_OK;
-  }
-
-  void handle_command() {
-    if (std::string_view(command_) == "rtc") {
-      char reply[24];
-      const auto time = read();
-      const int length = time
-          ? std::snprintf(reply, sizeof(reply), "@rtc %02d:%02d\r\n", time->hour, time->minute)
-          : std::snprintf(reply, sizeof(reply), "@rtc unset\r\n");
-      usb_serial_jtag_write_bytes(reply, length, pdMS_TO_TICKS(20));
-      return;
-    }
-    int year, month, day, weekday, hour, minute, second;
-    char extra;
-    if (std::sscanf(command_, "rtc %4d %2d %2d %1d %2d %2d %2d %c",
-                    &year, &month, &day, &weekday, &hour, &minute, &second, &extra) != 7) return;
-    const bool ok = set(year, month, day, weekday, hour, minute, second);
-    const char* reply = ok ? "@rtc ok\r\n" : "@rtc error\r\n";
-    usb_serial_jtag_write_bytes(reply, ok ? 9 : 12, pdMS_TO_TICKS(20));
   }
 
   bool set(int year, int month, int day, int weekday, int hour, int minute, int second) const {
@@ -130,9 +101,6 @@ class StopWatchClock {
     return time && time->hour == hour && time->minute == minute;
   }
 
-  bool usb_ready_ = false;
-  size_t length_ = 0;
-  char command_[40]{};
   i2c_master_dev_handle_t device_ = nullptr;
 };
 

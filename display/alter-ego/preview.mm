@@ -3,6 +3,7 @@
 #include <optional>
 
 #include "avatar.hpp"
+#include "idle.hpp"
 
 class Screen final : public hg::Display {
  public:
@@ -24,23 +25,55 @@ static uint32_t milliseconds() {
 
 @interface AvatarView : NSView
 - (NSBitmapImageRep*)renderBitmap;
+- (void)showBatteryPreview;
 @end
 
 @implementation AvatarView {
   Screen _screen;
   alter_ego::Avatar _avatar;
+  std::optional<uint32_t> _started;
+  std::optional<alter_ego::Idle> _idle;
+  alter_ego::Idle::Mode _mode;
+}
+
+- (void)showBatteryPreview {
+  const uint32_t now = milliseconds();
+  _avatar.touch(true, 233, 35, now);
+  _avatar.touch(true, 233, 215, now);
+  _avatar.touch(false, 233, 215, now);
 }
 
 - (NSBitmapImageRep*)renderBitmap {
   constexpr int size = alter_ego::size;
   const auto now = milliseconds();
+  if (!_started) {
+    _started = now;
+    _idle.emplace(now);
+    _mode = alter_ego::Idle::Mode::Animated;
+    _avatar.speech().begin_startup(now);
+  }
+  const auto wifi = now - *_started < 2400 ? alter_ego::WifiStatus::Connecting : alter_ego::WifiStatus::Connected;
   _avatar.speech().update(now, []() -> std::optional<alter_ego::ClockTime> {
     const auto timestamp = std::time(nullptr);
     std::tm local{};
     if (!localtime_r(&timestamp, &local)) return std::nullopt;
     return alter_ego::ClockTime{local.tm_hour, local.tm_min};
-  });
-  _avatar.draw(_screen, now);
+  }, wifi);
+  hg::PowerStatus sample;
+  sample.battery_present = true;
+  sample.battery_mv = 3964;
+  sample.external_power = true;
+  _avatar.set_power(sample);
+  const auto mode = _idle->mode(now);
+  if (mode != _mode) {
+    _avatar.set_spoons_raised(mode == alter_ego::Idle::Mode::Animated, now,
+                             mode == alter_ego::Idle::Mode::Dark);
+    _mode = mode;
+  }
+  if (mode == alter_ego::Idle::Mode::Dark)
+    std::fill_n(_screen.pixels, size * size, uint16_t{0});
+  else
+    _avatar.draw(_screen, now, mode == alter_ego::Idle::Mode::Animated);
   auto* bitmap = [[NSBitmapImageRep alloc]
       initWithBitmapDataPlanes:nullptr pixelsWide:size pixelsHigh:size bitsPerSample:8
       samplesPerPixel:4 hasAlpha:YES isPlanar:NO colorSpaceName:NSDeviceRGBColorSpace
@@ -64,9 +97,12 @@ static uint32_t milliseconds() {
 
 - (void)input:(NSEvent*)event down:(BOOL)down {
   const auto point = [self convertPoint:event.locationInWindow fromView:nil];
-  _avatar.touch(down, int(point.x * alter_ego::size / self.bounds.size.width),
-                int((self.bounds.size.height - point.y) * alter_ego::size / self.bounds.size.height),
-                milliseconds());
+  const auto now = milliseconds();
+  if (_idle && _idle->touch(down, now)) {
+    _avatar.touch(down, int(point.x * alter_ego::size / self.bounds.size.width),
+                  int((self.bounds.size.height - point.y) * alter_ego::size / self.bounds.size.height),
+                  now);
+  }
   self.needsDisplay = YES;
 }
 - (void)mouseDown:(NSEvent*)event { [self input:event down:YES]; }
@@ -87,7 +123,8 @@ int main(int argc, const char** argv) {
   @autoreleasepool {
     const auto bounds = NSMakeRect(0, 0, alter_ego::size, alter_ego::size);
     auto* view = [[AvatarView alloc] initWithFrame:bounds];
-    if (argc == 2) {
+    if (argc == 2 || (argc == 3 && std::string_view(argv[2]) == "--battery")) {
+      if (argc == 3) [view showBatteryPreview];
       auto* png = [[view renderBitmap] representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
       NSError* error = nil;
       if ([png writeToFile:@(argv[1]) options:0 error:&error]) return 0;

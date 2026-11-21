@@ -120,16 +120,17 @@ bool M5PM1Power::key_pressed(bool& pressed) {
   return true;
 }
 
-void M5PM1Power::poll(hg::App& app, uint32_t now_ms) {
-  if (!dev_ || now_ms - polled_at_ < kPollMs) return;
+bool M5PM1Power::poll(hg::App& app, uint32_t now_ms) {
+  if (!dev_ || now_ms - polled_at_ < kPollMs) return false;
   polled_at_ = now_ms;
 
   bool down = false;
-  if (!key_pressed(down)) return;
+  bool short_press = false;
+  if (!key_pressed(down)) return false;
   if (!key_armed_) {
     key_down_ = down;
     if (!down) key_armed_ = true;
-    return;
+    return false;
   }
 
   if (down && !key_down_) {
@@ -148,14 +149,14 @@ void M5PM1Power::poll(hg::App& app, uint32_t now_ms) {
   } else if (!down && key_down_) {
     key_down_ = false;
     if (!key_held_) {
-      app.on_power_key();
-      ESP_LOGI(kTag, "red key short press: display toggled");
+      short_press = true;
     }
   }
 
   // Reading the live key can leave a completed click latched on IRQ. Clear it
   // after release; the driver derives gestures from the live state itself.
   if (!down && gpio_get_level(kIrqGpio) == 0) clear_irqs();
+  return short_press;
 }
 
 std::optional<hg::PowerStatus> M5PM1Power::read() {

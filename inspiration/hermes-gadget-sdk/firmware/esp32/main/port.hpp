@@ -135,6 +135,8 @@ class EspSystem final : public hg::System {
   // except while dozing. Call before power management enables light sleep.
   bool enable_doze();
   void set_dozing(bool dozing) override;
+  static uint32_t light_sleep_count();
+  static uint32_t light_sleep_ms();
   static bool dozing_now();  // for tasks that poll: poll less while dozing
   std::function<void()> on_doze_start;  // e.g. power the speaker down
   std::function<void()> on_doze_end;    // e.g. power it up, retry Wi-Fi now: the user is back
@@ -450,6 +452,7 @@ class CodecAudio {
   // support 24 kHz as CodecAudio::begin() configures them.
   static constexpr uint32_t kRate = 24000;
   bool begin(const CodecAudioConfig& cfg, i2c_master_bus_handle_t bus);
+  void set_i2s_running(bool running);
   esp_codec_dev_handle_t out() const { return out_; }
   esp_codec_dev_handle_t in() const { return in_; }
   // How CodecMic powers its ADC down between captures (MicPower).
@@ -471,6 +474,7 @@ class CodecMic final : public hg::AudioIn {
  public:
   bool begin(esp_codec_dev_handle_t dev, bool rmnm, const CodecAudio::MicLink& link);
   bool start(uint32_t sample_rate) override;
+  void set_suspended(bool suspended);
   void stop() override { capturing_ = false; }
 
  private:
@@ -481,6 +485,7 @@ class CodecMic final : public hg::AudioIn {
   bool rmnm_ = false;
   int16_t* raw_ = nullptr;
   std::atomic<bool> capturing_{false};
+  std::atomic<bool> suspended_{false};
 };
 
 class CodecSpeaker final : public hg::AudioOut {
@@ -702,6 +707,7 @@ class Wifi {
   void scan_done();
   // The network the device is on, or empty.
   std::string current() const { return link_up_ ? ssid_ : std::string(); }
+  bool connecting() const { return scanning_ || retry_.attempting(); }
   void disconnected();
   void connected(hg::App& app);
   void tick(hg::App& app, uint32_t now);
@@ -753,7 +759,7 @@ class Wifi {
 
 namespace console {
 // Starts the serial console REPL; lines are executed by hg::App::console on the app task.
-void begin();
+void begin(bool rtc = false);
 }
 
 // A phone companion app over Bluetooth LE, on boards with BoardConfig::bluetooth

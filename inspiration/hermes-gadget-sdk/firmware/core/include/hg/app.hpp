@@ -133,6 +133,7 @@ class App {
   // Dozing (System::set_dozing): the port's loop may wait this long for events.
   static constexpr uint32_t kDozeWaitMs = 100;
   bool dozing() const { return dozing_; }
+  const std::optional<PowerStatus>& power_status() const { return power_status_; }
   bool start_wifi_setup();
   void close_wifi_setup();
   bool wifi_setup_open() const { return !wifi_setup_text_.empty(); }

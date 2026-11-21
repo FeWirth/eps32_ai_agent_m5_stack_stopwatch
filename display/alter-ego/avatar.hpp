@@ -6,6 +6,7 @@
 
 #include "hg/hal.hpp"
 #include "speech_bubble.hpp"
+#include "battery_drawer.hpp"
 
 #define HG_ALTER_EGO_SPEECH_BUBBLE 1
 
@@ -20,8 +21,10 @@ struct Point {
 class Avatar {
  public:
   SpeechBubble& speech() { return speech_; }
+  void set_power(const std::optional<hg::PowerStatus>& power) { battery_.set_power(power); }
 
   void touch(bool down, int x, int y, uint32_t now) {
+    if (battery_.touch(down, x, y, now)) return;
     speech_.touch(down, x, y, now);
     if (down && !held_) awakened_ = now;
     held_ = down;
@@ -31,7 +34,17 @@ class Avatar {
     }
   }
 
-  bool draw(hg::Display& display, uint32_t now) {
+  void set_spoons_raised(bool raised, uint32_t now, bool screen_off = false) {
+    spoon_from_ = screen_off ? 1.f : spoon_position(now);
+    spoon_target_ = raised ? 0.f : 1.f;
+    spoon_started_ = now;
+  }
+
+  bool spoons_moving(uint32_t now) const {
+    return spoon_from_ != spoon_target_ && now - spoon_started_ < kSpoonTravelMs;
+  }
+
+  bool draw(hg::Display& display, uint32_t now, bool animate = true) {
     const auto info = display.info();
     if (info.width != size || info.height != size || !info.round ||
         display.framebuffer_rows() || !display.framebuffer()) return false;
@@ -39,17 +52,20 @@ class Avatar {
     swapped_ = info.swap_bytes;
     std::fill_n(pixels_, size * size, uint16_t{0});
 
+    if (animate) animation_at_ = now;
     // The animation frequencies are multiples of 0.05 radians per second.
-    const float t = static_cast<float>(std::fmod(now * .001, 40.0 * pi));
-    const auto since = now - awakened_;
+    const float t = static_cast<float>(std::fmod(animation_at_ * .001, 40.0 * pi));
+    const auto since = animation_at_ - awakened_;
     const float pulse = since < 1600 ? std::exp(-static_cast<float>(since) / 490.0f) : 0.0f;
-    yaw_ += ((held_ ? target_yaw_ : .085f * std::sin(t * 1.15f)) - yaw_) * .18f;
-    pitch_ += ((held_ ? target_pitch_ : 0.f) - pitch_) * .18f;
-    cy_ = std::cos(yaw_);
-    sy_ = std::sin(yaw_);
-    cp_ = std::cos(pitch_);
-    sp_ = std::sin(pitch_);
-    bob_ = 5 * std::sin(t * 1.95f) - 8 * pulse;
+    if (animate) {
+      yaw_ += ((held_ ? target_yaw_ : .085f * std::sin(t * 1.15f)) - yaw_) * .18f;
+      pitch_ += ((held_ ? target_pitch_ : 0.f) - pitch_) * .18f;
+      cy_ = std::cos(yaw_);
+      sy_ = std::sin(yaw_);
+      cp_ = std::cos(pitch_);
+      sp_ = std::sin(pitch_);
+      bob_ = 5 * std::sin(t * 1.95f) - 8 * pulse;
+    }
     sky(t, pulse);
 
     constexpr Point shoulders[] = {{-139,35},{-116,18},{-90,15},{-53,30},
@@ -68,7 +84,7 @@ class Avatar {
       {0,-73},{23,-70},{40,-65},{76,-94},{106,-111},{128,-122},{87,-68},{72,-35},
       {71,-20},{82,-4},{62,1},{40,7},{25,21},{13,44},{7,51},{0,53},
       {-7,51},{-13,44},{-25,21},{-40,7},{-62,1},{-82,-4},{-71,-20},{-72,-35},{-87,-68}};
-    const float blink = std::clamp(std::abs(static_cast<int>(now % 3900) - 3650) / 94.f, .15f, 1.f);
+    const float blink = std::clamp(std::abs(static_cast<int>(animation_at_ % 3900) - 3650) / 94.f, .15f, 1.f);
     for (int y = -122; y <= 53; y += 3) {
       for (int x = -128; x <= 128; x += 3) {
         if (!inside(head, x, y)) continue;
@@ -87,6 +103,7 @@ class Avatar {
       }
     }
 
+    const float lowered = spoon_position(now);
     for (const int sign : {-1, 1}) {
       for (int i = 0; i <= 34; ++i) {
         const float u = i / 34.f;
@@ -99,10 +116,11 @@ class Avatar {
                   255, 189, 67, .84f - std::abs(row) * .12f, 1);
         }
       }
-      spoon(sign, t, pulse);
+      if (lowered < 1.f) spoon(sign, t, pulse, lowered);
     }
     hg::Canvas canvas(pixels_, size, size, swapped_);
     speech_.draw(canvas);
+    battery_.draw(canvas, pixels_, now);
     display.flush(0, size);
     return true;
   }
@@ -131,14 +149,16 @@ class Avatar {
     if (radius) pixel[-1] = pixel[1] = pixel[-size] = pixel[size] = color;
   }
 
-  void project(float x, float y, float z, int r, int g, int b, float light, int radius) {
+  void project(float x, float y, float z, int r, int g, int b, float light, int radius, bool clip_round = false) {
     const float rx = x * cy_ + z * sy_;
     const float rz = z * cy_ - x * sy_;
     const float ry = y * cp_ - rz * sp_;
     const float depth = y * sp_ + rz * cp_;
     const float scale = 430.f / (430.f - depth);
-    dot(static_cast<int>(233 + rx * scale), static_cast<int>(224 + bob_ + ry * scale),
-        r, g, b, light, radius);
+    const int sx = static_cast<int>(233 + rx * scale);
+    const int sy = static_cast<int>(224 + bob_ + ry * scale);
+    if (clip_round && (sx - 233) * (sx - 233) + (sy - 233) * (sy - 233) > 231 * 231) return;
+    dot(sx, sy, r, g, b, light, radius);
   }
 
   void sky(float t, float pulse) {
@@ -170,12 +190,21 @@ class Avatar {
     }
   }
 
-  void spoon(int sign, float t, float pulse) {
+  static constexpr uint32_t kSpoonTravelMs = 760;
+
+  float spoon_position(uint32_t now) const {
+    if (!spoons_moving(now)) return spoon_target_;
+    const float u = (now - spoon_started_) / static_cast<float>(kSpoonTravelMs);
+    const float eased = u * u * (3 - 2 * u);
+    return spoon_from_ + (spoon_target_ - spoon_from_) * eased;
+  }
+
+  void spoon(int sign, float t, float pulse, float lowered) {
     const float phase = t * 2.1f + sign;
-    const float ox = sign * (158 + 8 * std::cos(phase) + 12 * pulse);
-    const float oy = -31 + 13 * std::sin(phase) - 17 * pulse;
+    const float ox = sign * (158 + 8 * std::cos(phase) + 12 * pulse + 22 * lowered);
+    const float oy = -31 + 13 * std::sin(phase) - 17 * pulse + 290 * lowered;
     const float z = 17 * std::cos(phase);
-    const float tilt = -.48f * sign + .15f * std::sin(phase);
+    const float tilt = (-.48f + .38f * lowered) * sign + .15f * std::sin(phase);
     const float c = std::cos(tilt), s = std::sin(tilt);
     for (int y = -24; y <= 43; y += 3) {
       for (int x = -15; x <= 15; x += 3) {
@@ -183,13 +212,17 @@ class Avatar {
         if (bowl > 1.f && !(y >= 8 && std::abs(x) <= (y > 32 ? 5 : 3))) continue;
         const float light = std::clamp(.51f + .32f * bowl - x / 38.f + pulse * .11f, .25f, 1.f);
         project(ox + x * c + y * s, oy + y * c - x * s, z + 4 * std::max(0.f, 1 - bowl),
-                248, 232, 206, light, 1);
+                248, 232, 206, light * (1 - .28f * lowered), 1, true);
       }
     }
   }
 
   SpeechBubble speech_;
+  BatteryDrawer battery_;
   uint16_t* pixels_ = nullptr;
+  uint32_t spoon_started_ = 0;
+  float spoon_from_ = 0, spoon_target_ = 0;
+  uint32_t animation_at_ = 0;
   uint32_t awakened_ = uint32_t{0} - 1600u;
   bool held_ = false, swapped_ = false;
   float yaw_ = 0, pitch_ = 0, target_yaw_ = 0, target_pitch_ = 0;

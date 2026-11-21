@@ -64,6 +64,10 @@ bool EspSystem::enable_doze() {
 #endif
 }
 
+uint32_t EspSystem::light_sleep_count() { return g_sleeps.load(std::memory_order_relaxed); }
+
+uint32_t EspSystem::light_sleep_ms() { return static_cast<uint32_t>(g_slept_us.load(std::memory_order_relaxed) / 1000); }
+
 bool EspSystem::dozing_now() { return g_dozing.load(std::memory_order_relaxed); }
 
 void EspSystem::set_dozing(bool dozing) {

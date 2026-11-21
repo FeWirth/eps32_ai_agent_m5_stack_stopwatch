@@ -1,0 +1,6 @@
+# 80 MHz idle scaling and light sleep only while the avatar display is off on battery.
+CONFIG_PM_ENABLE=y
+CONFIG_FREERTOS_USE_TICKLESS_IDLE=y
+CONFIG_USJ_NO_AUTO_LS_ON_CONNECTION=y
+CONFIG_RTC_CLK_SRC_INT_8MD256=y
+CONFIG_PM_LIGHT_SLEEP_CALLBACKS=y

@@ -42,7 +42,7 @@ int run(int argc, char** argv) {
 
 }  // namespace
 
-void begin() {
+void begin(bool rtc) {
   static const char* const kCommands[] = {"help",      "status", "diag",   "get",         "set",       "say",
                                           "talk",      "release", "cancel", "new-session", "reconnect", "forget-key",
                                           "factory-reset", "settings", "wifi-setup", "wifi", "phone", "perf"};
@@ -51,6 +51,16 @@ void begin() {
     cmd.command = name;
     cmd.help = "Hermes Gadget command (see: help)";
     cmd.func = &run;
+    esp_console_cmd_register(&cmd);
+  }
+  if (rtc) {
+    esp_console_cmd_t cmd{};
+    cmd.command = "rtc";
+    cmd.help = "Read or set the StopWatch clock";
+    cmd.func = &run;
+    esp_console_cmd_register(&cmd);
+    cmd.command = "avatar-power";
+    cmd.help = "Show avatar display and light sleep diagnostics";
     esp_console_cmd_register(&cmd);
   }
   esp_console_repl_t* repl = nullptr;

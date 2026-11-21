@@ -25,9 +25,9 @@ class M5PM1Power final : public hg::Power {
   std::optional<bool> external_power() override;
 
   // Run on the app task every loop. A short red-key press sleeps/wakes the
-  // display; a 1.5 s hold opens or closes Settings. The PMIC retains its 4 s
+  // display when the caller handles the returned short press; a 1.5 s hold toggles Settings. The PMIC retains its 4 s
   // emergency shutdown behavior.
-  void poll(hg::App& app, uint32_t now_ms);
+  bool poll(hg::App& app, uint32_t now_ms);
 
  private:
   bool read8(uint8_t reg, uint8_t& value);

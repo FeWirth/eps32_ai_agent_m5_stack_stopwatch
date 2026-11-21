@@ -18,3 +18,4 @@ clang++ -std=c++17 -O2 -Wall -Wextra -Werror -fobjc-arc -framework AppKit \
   -I "$core/include" preview.mm "$core/src/canvas.cpp" "$core/src/font5x7.cpp" \
   -o "$app/Contents/MacOS/Alter-Ego"
 "$app/Contents/MacOS/Alter-Ego" "$PWD/build/preview.png"
+"$app/Contents/MacOS/Alter-Ego" "$PWD/build/battery-preview.png" --battery

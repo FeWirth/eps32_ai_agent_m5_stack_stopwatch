@@ -15,13 +15,21 @@ struct ClockTime {
   int minute;
 };
 
+enum class WifiStatus { Offline, Connecting, Connected };
+
 class SpeechBubble {
  public:
   SpeechBubble() { show_message("Hi, Felix!"); }
 
-  // Replaces the current content and stops the live clock until the next tap.
+  void begin_startup(uint32_t now) {
+    startup_ = Startup::Greeting;
+    startup_at_ = now;
+  }
+
+  // Shows new text immediately and returns to it after cycling through the views.
   void show_message(std::string_view message) {
-    showing_clock_ = false;
+    startup_ = Startup::Done;
+    view_ = View::Text;
     message_.assign(message);
     set_text(message_);
   }
@@ -36,16 +44,37 @@ class SpeechBubble {
     if (down && (std::abs(x - start_x_) > 14 || std::abs(y - start_y_) > 14)) moved_ = true;
     // The touchscreen may report zero coordinates on lift.
     if (!down && held_ && !moved_ && now - pressed_at_ <= 350) {
-      showing_clock_ = !showing_clock_;
-      if (showing_clock_) next_update_ = now;
-      else set_text(message_);
+      if (startup_ != Startup::Done) view_ = View::Text;
+      startup_ = Startup::Done;
+      switch (view_) {
+        case View::Text: view_ = View::Clock; next_update_ = now; break;
+        case View::Clock: view_ = View::Wifi; set_text(wifi_text(wifi_)); break;
+        case View::Wifi: view_ = View::Text; set_text(message_); break;
+      }
     }
     held_ = down;
   }
 
   template <typename ReadClock>
-  void update(uint32_t now, ReadClock read_clock) {
-    if (!showing_clock_ || static_cast<int32_t>(now - next_update_) < 0) return;
+  void update(uint32_t now, ReadClock read_clock, WifiStatus wifi) {
+    wifi_ = wifi;
+    if (startup_ == Startup::Greeting && now - startup_at_ >= 1500) {
+      startup_ = Startup::Network;
+      startup_at_ = now;
+      view_ = View::Wifi;
+    }
+    if (startup_ == Startup::Network && wifi == WifiStatus::Connected) {
+      startup_ = Startup::Connected;
+      startup_at_ = now;
+    } else if (startup_ == Startup::Connected && wifi != WifiStatus::Connected) {
+      startup_ = Startup::Network;
+    } else if (startup_ == Startup::Connected && now - startup_at_ >= 1200) {
+      startup_ = Startup::Done;
+      view_ = View::Text;
+      set_text(message_);
+    }
+    if (view_ == View::Wifi) set_text(wifi_text(wifi));
+    if (view_ != View::Clock || static_cast<int32_t>(now - next_update_) < 0) return;
     next_update_ = now + 1000;
     const auto time = read_clock();
     if (time && time->hour >= 0 && time->hour < 24 && time->minute >= 0 && time->minute < 60) {
@@ -88,6 +117,18 @@ class SpeechBubble {
   }
 
  private:
+  enum class View { Text, Clock, Wifi };
+  enum class Startup { Done, Greeting, Network, Connected };
+
+  static std::string_view wifi_text(WifiStatus wifi) {
+    switch (wifi) {
+      case WifiStatus::Connecting: return "WLAN: Verbinde ...";
+      case WifiStatus::Connected: return "WLAN: Verbunden";
+      case WifiStatus::Offline: return "WLAN: Offline";
+    }
+    return "WLAN: Offline";
+  }
+
   void set_text(std::string_view message) {
     const auto bounded = message.substr(0, hg::font::prefix(message, 64));
     const bool clipped = bounded.size() < message.size();
@@ -114,7 +155,10 @@ class SpeechBubble {
   bool clipped_ = false;
   bool held_ = false;
   bool moved_ = false;
-  bool showing_clock_ = false;
+  View view_ = View::Text;
+  Startup startup_ = Startup::Done;
+  WifiStatus wifi_ = WifiStatus::Offline;
+  uint32_t startup_at_ = 0;
 };
 
 }  // namespace alter_ego

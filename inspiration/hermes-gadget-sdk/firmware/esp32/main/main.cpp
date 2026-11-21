@@ -2,6 +2,7 @@
 // core (hg::App) and runs the app loop on the main task.
 #include "port.hpp"  // first: pulls in FreeRTOS.h ahead of task.h/queue.h
 
+#include <cstdio>
 #include <cstring>
 
 #include "driver/gpio.h"
@@ -22,6 +23,7 @@
 #include "avatar.hpp"
 #ifdef HG_ALTER_EGO_SPEECH_BUBBLE
 #include "stopwatch_clock.hpp"
+#include "idle.hpp"
 #endif
 #endif
 #if SOC_MIPI_DSI_SUPPORTED
@@ -32,22 +34,14 @@ namespace {
 
 const char* TAG = "hg.main";
 
-#if CONFIG_HG_BOARD_M5STACK_STOPWATCH && defined(HG_ALTER_EGO)
-void run_alter_ego(hg::Display& display, [[maybe_unused]] i2c_master_bus_handle_t bus) {
+#if CONFIG_HG_BOARD_M5STACK_STOPWATCH && defined(HG_ALTER_EGO) && !defined(HG_ALTER_EGO_SPEECH_BUBBLE)
+void run_alter_ego(hg::Display& display) {
   alter_ego::Avatar avatar;
-#ifdef HG_ALTER_EGO_SPEECH_BUBBLE
-  alter_ego::StopWatchClock wall_clock(bus);
-  wall_clock.enable_usb();
-#endif
   hgp::EspSystem clock;
   uint32_t next_frame = clock.now_ms();
   for (;;) {
     const uint32_t now = clock.now_ms();
     if (static_cast<int32_t>(now - next_frame) >= 0) {
-#ifdef HG_ALTER_EGO_SPEECH_BUBBLE
-      wall_clock.poll_usb();
-      avatar.speech().update(now, [&wall_clock] { return wall_clock.read(); });
-#endif
       if (!avatar.draw(display, now)) {
         ESP_LOGE(TAG, "Alter Ego requires a full 466 x 466 round framebuffer");
         return;
@@ -320,7 +314,11 @@ extern "C" void app_main(void) {
   esp_pm_config_t pm = {};
   pm.max_freq_mhz = CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ;
   pm.min_freq_mhz = 80;
-  pm.light_sleep_enable = board.light_sleep && g_system.enable_doze();
+  bool allow_light_sleep = board.light_sleep;
+#ifdef HG_ALTER_EGO_SPEECH_BUBBLE
+  allow_light_sleep = true;
+#endif
+  pm.light_sleep_enable = allow_light_sleep && g_system.enable_doze();
   if (esp_pm_configure(&pm) != ESP_OK) ESP_LOGW(TAG, "power management unavailable; the CPU stays at full speed");
 #endif
   g_updater.expect_board(board.name);
@@ -369,6 +367,9 @@ extern "C" void app_main(void) {
     ESP_LOGE(TAG, "M5IOE1 init failed — display/touch/audio may not work");
   if (i2c_bus && g_m5pm1_power.begin(i2c_bus)) {
     hal.power = &g_m5pm1_power;
+#ifdef HG_ALTER_EGO_SPEECH_BUBBLE
+    g_wifi.on_battery = [] { return g_m5pm1_power.external_power() == std::optional<bool>(false); };
+#endif
   } else {
     ESP_LOGE(TAG, "M5PM1 init failed — red key and power telemetry unavailable");
   }
@@ -423,7 +424,9 @@ extern "C" void app_main(void) {
                      g_touch.begin(board.touch, board.pwr_key, board.encoder,
                                    board.touch.bus.sda >= 0 ? hgp::i2c::touch_bus(board.touch.bus) : i2c_bus);
 #if CONFIG_HG_BOARD_M5STACK_STOPWATCH && defined(HG_ALTER_EGO)
-  if (hal.display == &g_amoled) run_alter_ego(g_amoled, i2c_bus);
+#ifndef HG_ALTER_EGO_SPEECH_BUBBLE
+  if (hal.display == &g_amoled) run_alter_ego(g_amoled);
+#endif
 #endif
 
   hgp::diag::Parts parts;
@@ -484,6 +487,21 @@ extern "C" void app_main(void) {
   if (hal.speaker == &g_codec_speaker) profile.speaker_rate = hgp::CodecAudio::kRate;
 #endif
 
+#ifdef HG_ALTER_EGO_SPEECH_BUBBLE
+  const bool avatar_active = hal.display == &g_amoled;
+  std::optional<alter_ego::Avatar> avatar;
+  std::optional<alter_ego::StopWatchClock> avatar_clock;
+  uint32_t next_avatar_frame = g_system.now_ms();
+  alter_ego::Idle avatar_idle(next_avatar_frame);
+  auto avatar_mode = alter_ego::Idle::Mode::Animated;
+  if (avatar_active) {
+    hal.display = nullptr;
+    avatar.emplace();
+    avatar_clock.emplace(i2c_bus);
+    avatar->speech().begin_startup(next_avatar_frame);
+  }
+#endif
+
 #if CONFIG_HG_BOARD_ESP32_CYD
   // From the heap, so the early framebuffer can take the one large contiguous
   // block before this claims part of what is left of internal RAM.
@@ -522,24 +540,67 @@ extern "C" void app_main(void) {
 #endif
   };
   app.recent_log = &hgp::diag::recent_log;
-  if (board.light_sleep) keep_pins_through_sleep(board);
+  if (board.light_sleep
+#ifdef HG_ALTER_EGO_SPEECH_BUBBLE
+      || avatar_active
+#endif
+  ) keep_pins_through_sleep(board);
 #if !CONFIG_HG_BOARD_ESP32_CYD
-  g_system.on_doze_start = [] { g_codec_speaker.power_down(); };
+  g_system.on_doze_start = [] {
+    g_codec_speaker.power_down();
+#ifdef HG_ALTER_EGO_SPEECH_BUBBLE
+    hgp::m5ioe1().set_amp(false);
+    g_codec_mic.set_suspended(true);
+    g_codec.set_i2s_running(false);
+#endif
+  };
   g_system.on_doze_end = [] {
+#ifdef HG_ALTER_EGO_SPEECH_BUBBLE
+    g_codec.set_i2s_running(true);
+    g_codec_mic.set_suspended(false);
+    hgp::m5ioe1().set_amp(true);
+#endif
     g_codec_speaker.power_up();
     g_wifi.retry_now();
   };
 #endif
   app.begin();
+#ifdef HG_ALTER_EGO_SPEECH_BUBBLE
+  hgp::console::begin(avatar_active);
+#else
   hgp::console::begin();
+#endif
 
   for (;;) {
     hgp::Event ev;
     // Block briefly for events, then run the core's timers and animations.
     // Dozing on a light-sleep board, the chip may sleep between events; input and
     // the network still wake it. Other boards keep the short wait.
-    if (hgp::events::receive(ev, pdMS_TO_TICKS(board.light_sleep && app.dozing() ? hg::App::kDozeWaitMs : 10))) {
+    const auto wait_ms = (app.dozing() || hgp::EspSystem::dozing_now()) ? hg::App::kDozeWaitMs : 10;
+    if (hgp::events::receive(ev, pdMS_TO_TICKS(wait_ms))) {
       do {
+#ifdef HG_ALTER_EGO_SPEECH_BUBBLE
+        if (avatar && ev.type == hgp::EventType::Touch && ev.len == sizeof(hgp::TouchSample)) {
+          const auto& sample = *reinterpret_cast<const hgp::TouchSample*>(ev.data);
+          const auto now = g_system.now_ms();
+          if (avatar_idle.touch(sample.touching, now)) avatar->touch(sample.touching, sample.x, sample.y, now);
+          next_avatar_frame = now;
+        } else if (avatar_clock && ev.type == hgp::EventType::Console && ev.console) {
+          const std::string_view line{reinterpret_cast<const char*>(ev.data), ev.len};
+          if (line == "avatar-power") {
+            const char* mode = avatar_mode == alter_ego::Idle::Mode::Dark ? "dark"
+                             : avatar_mode == alter_ego::Idle::Mode::Still ? "still" : "animated";
+            char reply[112];
+            std::snprintf(reply, sizeof(reply), "@avatar-power mode=%s dozing=%d sleep_ms=%lu sleep_count=%lu",
+                          mode, hgp::EspSystem::dozing_now(), static_cast<unsigned long>(hgp::EspSystem::light_sleep_ms()),
+                          static_cast<unsigned long>(hgp::EspSystem::light_sleep_count()));
+            ev.console->answer(reply);
+          } else if (line == "rtc" || line.substr(0, 4) == "rtc ")
+            ev.console->answer(avatar_clock->command(std::string(line).c_str()));
+          else
+            dispatch(app, ev);
+        } else
+#endif
         dispatch(app, ev);
         hgp::events::release(ev);
       } while (hgp::events::receive(ev, 0));
@@ -554,10 +615,42 @@ extern "C" void app_main(void) {
     }
     g_buttons.poll(app);
 #if CONFIG_HG_BOARD_M5STACK_STOPWATCH
-    g_m5pm1_power.poll(app, g_system.now_ms());
+    if (g_m5pm1_power.poll(app, g_system.now_ms())) {
+#ifdef HG_ALTER_EGO_SPEECH_BUBBLE
+      if (avatar) avatar_idle.toggle_display(g_system.now_ms());
+      else
+#endif
+      app.on_power_key();
+    }
 #endif
     g_wifi.tick(app, g_system.now_ms());
     if (g_gestures) g_gestures->tick(g_system.now_ms());
     app.tick();
+#ifdef HG_ALTER_EGO_SPEECH_BUBBLE
+    const uint32_t now = g_system.now_ms();
+    if (!avatar) continue;
+    const auto mode = avatar_idle.mode(now);
+    const bool dark = mode == alter_ego::Idle::Mode::Dark;
+    const auto& power = app.power_status();
+    g_system.set_dozing(dark && !app.in_turn() && !g_codec_speaker.busy() && power && power->external_power == false);
+    const bool was_dark = avatar_mode == alter_ego::Idle::Mode::Dark;
+    if (mode != avatar_mode) {
+      avatar->set_spoons_raised(mode == alter_ego::Idle::Mode::Animated, now, dark);
+      if (dark) g_amoled.set_backlight(0);
+      avatar_mode = mode;
+      next_avatar_frame = now;
+    }
+    if (!dark && static_cast<int32_t>(now - next_avatar_frame) >= 0) {
+      const auto wifi = !g_wifi.current().empty() ? alter_ego::WifiStatus::Connected
+                      : g_wifi.connecting() ? alter_ego::WifiStatus::Connecting
+                                            : alter_ego::WifiStatus::Offline;
+      avatar->speech().update(now, [&avatar_clock] { return avatar_clock->read(); }, wifi);
+      avatar->set_power(app.power_status());
+      const bool animate = mode == alter_ego::Idle::Mode::Animated;
+      avatar->draw(g_amoled, now, animate);
+      if (was_dark) g_amoled.set_backlight(100);
+      next_avatar_frame = now + (animate || avatar->spoons_moving(now) ? 50 : 1000);
+    }
+#endif
   }
 }

@@ -61,6 +61,12 @@ i2c_master_bus_handle_t touch_bus(const I2cBusConfig& cfg) {
 // --------------------------------------------------------------------------
 // Codecs
 
+void CodecAudio::set_i2s_running(bool running) {
+  const auto set_channel = running ? i2s_channel_enable : i2s_channel_disable;
+  if (rx_) set_channel(rx_);
+  if (tx_) set_channel(tx_);
+}
+
 bool CodecAudio::begin(const CodecAudioConfig& cfg, i2c_master_bus_handle_t bus) {
   if (!bus) return false;
   if (cfg.speaker_pa && cfg.pa >= 0) {
@@ -192,6 +198,11 @@ bool CodecMic::start(uint32_t sample_rate) {
   return true;
 }
 
+void CodecMic::set_suspended(bool suspended) {
+  suspended_ = suspended;
+  if (!suspended && task_) xTaskNotifyGive(task_);
+}
+
 void CodecMic::task(void* arg) {
   auto* self = static_cast<CodecMic*>(arg);
   int16_t pcm[kMicChunk];
@@ -228,7 +239,13 @@ void CodecMic::task(void* arg) {
     void pause() { vTaskDelay(pdMS_TO_TICKS(10)); }
   } ops{self};
   hg::MicPower power(self->link_.switchable);
-  for (;;) power.turn(self->capturing_.load(), ops, pcm);
+  for (;;) {
+    if (self->suspended_) {
+      ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+      continue;
+    }
+    power.turn(self->capturing_.load(), ops, pcm);
+  }
 }
 
 // --------------------------------------------------------------------------
