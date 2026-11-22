@@ -17,6 +17,7 @@ Diese Sammlung hilft bei der Auswahl von Komponenten für Weboberflächen und be
 | Visuelle Referenzen und Beispiele für Komponenten und Layouts | [Beautiful UI](https://beautifului.dev), [RareUI](https://rareui.in) |
 | Referenzen für animierte Komponenten und visuelle Effekte | [Magic UI](https://magicui.design), [Aceternity UI](https://ui.aceternity.com) |
 | Community-Komponenten und Beispiele für konkrete UI-Muster | [21st.dev](https://21st.dev) |
+| Inspiration für animierte SVG-Illustrationen, etwa im Onboarding oder für leere Ansichten | [illos.dev](https://illos.dev/) |
 
 ## Welche Angaben bei einer UI-Aufgabe helfen
 

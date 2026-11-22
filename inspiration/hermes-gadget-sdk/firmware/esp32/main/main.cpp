@@ -629,6 +629,8 @@ extern "C" void app_main(void) {
 #ifdef HG_ALTER_EGO_SPEECH_BUBBLE
     const uint32_t now = g_system.now_ms();
     if (!avatar) continue;
+    const bool wifi_connected = !g_wifi.current().empty();
+    avatar_clock->tick_network(wifi_connected);
     const auto mode = avatar_idle.mode(now);
     const bool dark = mode == alter_ego::Idle::Mode::Dark;
     const auto& power = app.power_status();
@@ -641,7 +643,7 @@ extern "C" void app_main(void) {
       next_avatar_frame = now;
     }
     if (!dark && static_cast<int32_t>(now - next_avatar_frame) >= 0) {
-      const auto wifi = !g_wifi.current().empty() ? alter_ego::WifiStatus::Connected
+      const auto wifi = wifi_connected ? alter_ego::WifiStatus::Connected
                       : g_wifi.connecting() ? alter_ego::WifiStatus::Connecting
                                             : alter_ego::WifiStatus::Offline;
       avatar->speech().update(now, [&avatar_clock] { return avatar_clock->read(); }, wifi);

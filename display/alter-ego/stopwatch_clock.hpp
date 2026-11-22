@@ -1,18 +1,23 @@
 #pragma once
 
 #include <cstdio>
+#include <cstdlib>
 #include <ctime>
 #include <optional>
 
 #include "driver/i2c_master.h"
+#include "esp_log.h"
+#include "esp_netif_sntp.h"
 #include "speech_bubble.hpp"
 
 namespace alter_ego {
 
-// Read the time already stored in the board's RX8130CE on the shared I2C bus.
+// Keep Berlin time from SNTP when available, with the RX8130CE as the offline source.
 class StopWatchClock {
  public:
   explicit StopWatchClock(i2c_master_bus_handle_t bus) {
+    setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0/3", 1);
+    tzset();
     if (!bus) return;
     i2c_device_config_t config{};
     config.dev_addr_length = I2C_ADDR_BIT_LEN_7;
@@ -23,13 +28,47 @@ class StopWatchClock {
   }
 
   ~StopWatchClock() {
+    if (sntp_started_) esp_netif_sntp_deinit();
     if (device_) i2c_master_bus_rm_device(device_);
   }
 
   StopWatchClock(const StopWatchClock&) = delete;
   StopWatchClock& operator=(const StopWatchClock&) = delete;
 
+  void tick_network(bool connected) {
+    if (connected && !connected_) {
+      if (sntp_started_) {
+        if (esp_netif_sntp_start() != ESP_OK) ESP_LOGW("hg.rtc", "could not restart SNTP");
+      } else {
+        const esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
+        sntp_started_ = esp_netif_sntp_init(&config) == ESP_OK;
+        if (!sntp_started_) ESP_LOGW("hg.rtc", "could not start SNTP");
+      }
+    }
+    connected_ = connected;
+    if (!sntp_started_ || esp_netif_sntp_sync_wait(0) != ESP_OK) return;
+
+    const auto timestamp = std::time(nullptr);
+    std::tm local{};
+    if (!localtime_r(&timestamp, &local) || local.tm_year < 125) return;
+    network_time_ = true;
+    const bool saved = set(local.tm_year + 1900, local.tm_mon + 1, local.tm_mday, local.tm_wday,
+                           local.tm_hour, local.tm_min, local.tm_sec);
+    ESP_LOGI("hg.rtc", "SNTP Berlin %02d:%02d:%02d; RTC %s", local.tm_hour, local.tm_min,
+             local.tm_sec, saved ? "verified" : "write failed");
+  }
+
   std::optional<ClockTime> read() const {
+    if (network_time_) {
+      const auto timestamp = std::time(nullptr);
+      std::tm local{};
+      if (localtime_r(&timestamp, &local)) return ClockTime{local.tm_hour, local.tm_min};
+    }
+    return read_rtc();
+  }
+
+ private:
+  std::optional<ClockTime> read_rtc() const {
     constexpr uint8_t first_register = 0x10;
     constexpr int flags = 0x1d - first_register;
     constexpr int control = 0x1e - first_register;
@@ -44,10 +83,11 @@ class StopWatchClock {
     return ClockTime{(hour >> 4) * 10 + (hour & 0xf), (minute >> 4) * 10 + (minute & 0xf)};
   }
 
+ public:
   std::string command(const char* line) const {
     if (std::string_view(line) == "rtc") {
       char reply[24];
-      const auto time = read();
+      const auto time = read_rtc();
       if (!time) return "@rtc unset";
       std::snprintf(reply, sizeof(reply), "@rtc %02d:%02d", time->hour, time->minute);
       return reply;
@@ -97,10 +137,13 @@ class StopWatchClock {
     if (i2c_master_transmit(device_, resume, sizeof(resume), 20) != ESP_OK || !written) return false;
     const uint8_t flags[] = {flag_reg, static_cast<uint8_t>(status[0] & ~0x02)};
     if (i2c_master_transmit(device_, flags, sizeof(flags), 20) != ESP_OK) return false;
-    const auto time = read();
+    const auto time = read_rtc();
     return time && time->hour == hour && time->minute == minute;
   }
 
+  bool connected_ = false;
+  bool sntp_started_ = false;
+  bool network_time_ = false;
   i2c_master_dev_handle_t device_ = nullptr;
 };
 

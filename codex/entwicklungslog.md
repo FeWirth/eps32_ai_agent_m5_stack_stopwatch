@@ -34,4 +34,12 @@
 ## 21. November 2026 · Löffel-Animation
 
 - Nach 5 s Inaktivität sinken beide Löffel über 760 ms aus dem runden Ausschnitt. Der übrige Avatar steht währenddessen bereits still. Beim Aufwecken beginnt der erste Frame mit abgesenkten Löffeln und hebt sie wieder an.
-- Mac-Vorschau, gerenderte Zwischenbilder und ESP32-S3-Build sind geprüft. Die Animation wurde noch nicht auf die Uhr geflasht. Dort läuft der bestätigte Energiespar-Build.
+- Mac-Vorschau, gerenderte Zwischenbilder und ESP32-S3-Build sind geprüft. Die Firmware mit Animation wurde verifiziert auf die Uhr geflasht. Nach dem Neustart waren Heimnetz und RTC-Zeit verfügbar. Die Animation wurde auf der Uhr noch nicht visuell geprüft.
+
+## 21. November 2026 · Zeitsynchronisation nach vollständigem Ausschalten
+
+Nach einer längeren Ausschaltphase ohne USB meldete die RX8130CE im USB-Test „unset“, obwohl sie frühere USB-Hard-Resets überstanden hatte. Die Ursache des Zeitverlusts bei abgeschaltetem Gerät wurde offen gelassen.
+
+Die Firmware startet SNTP nach dem Erhalt einer WLAN-IP-Adresse und bei Wiederverbindung erneut. Sie liefert Berliner Ortszeit aus der synchronisierten Systemuhr und schreibt diese in die Hardware-Uhr zurück. Bei einem Offline-Start bleibt der RX8130CE die Zeitquelle, solange seine Daten gültig sind.
+
+Test auf derselben StopWatch ohne manuelles Stellen: RTC vor dem Flash ungültig. Nach dem Neustart protokollierte die Firmware nach etwa 6,7 s `SNTP Berlin 02:12:46; RTC verified`. Eine nachfolgende USB-Abfrage las `02:13` direkt aus der Hardware-Uhr.

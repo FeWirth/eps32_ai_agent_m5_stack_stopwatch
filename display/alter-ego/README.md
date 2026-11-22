@@ -29,7 +29,7 @@ Build-Ausgaben, der Komponenten-Cache und gegebenenfalls lokal installierte Pyth
 
 ## Sprechblase
 
-Kurze Tipps wechseln zwischen Textausgabe, Uhrzeit und WLAN-Status. Beim Start erscheint „Hi, Felix!“, gefolgt vom WLAN-Status. Sobald die Uhr eine IP-Adresse hat, erscheint kurz „WLAN: Verbunden“ und anschließend wieder der Begrüßungstext. Ein Tipp während der Startfolge wechselt direkt in den normalen Tipp-Loop. Die Uhrzeit aktualisiert sich jede Sekunde aus der vorhandenen RX8130CE-Echtzeituhr. Sie übernimmt deren gespeicherte Uhrzeit ohne Zeitzonenumrechnung. Ist die Uhr gestoppt, ungültig oder nicht lesbar, erscheint „Uhr nicht gestellt“.
+Kurze Tipps wechseln zwischen Textausgabe, Uhrzeit und WLAN-Status. Beim Start erscheint „Hi, Felix!“, gefolgt vom WLAN-Status. Sobald die Uhr eine IP-Adresse hat, erscheint kurz „WLAN: Verbunden“ und anschließend wieder der Begrüßungstext. Ein Tipp während der Startfolge wechselt direkt in den normalen Tipp-Loop. Mit WLAN synchronisiert die StopWatch die Zeit per SNTP über `pool.ntp.org`. Die Firmware rechnet auf Berliner Ortszeit mit Sommerzeit um und schreibt sie in die RX8130CE-Echtzeituhr zurück. Beim Start ohne Netz dient die Hardware-Uhr als Zeitquelle. Falls sie ihre Zeit verloren hat, erscheint bis zum nächsten Abgleich „Uhr nicht gestellt“.
 
 Für weitere Funktionen setzt `avatar.speech().show_message(text)` den Inhalt. Die Sprechblase bricht Text auf bis zu zwei Zeilen um und kürzt Überlänge mit Auslassungspunkten. Die Plattform liefert die Zeitquelle separat über `SpeechBubble::update`.
 
@@ -41,7 +41,7 @@ Mit laufender Himmelsgravur-Firmware und installiertem `pyserial` vom Projektsta
 python3 display/alter-ego/set-clock.py /dev/cu.usbmodem21401 --zone Europe/Berlin
 ```
 
-Den tatsächlichen USB-Port einsetzen. Mit `--read` lässt sich der RTC auslesen. Die Firmware aktiviert die RTC-Pufferung der StopWatch. Das Skript verwendet die aktuelle Host-Zeit, rechnet sie in die gewählte Zeitzone um und wartet auf die Bestätigung der Uhr. Der RTC speichert Ortszeit. Nach einem Sommerzeitwechsel den Abgleich erneut ausführen.
+Den tatsächlichen USB-Port einsetzen. Mit `--read` lässt sich der RTC auslesen. Die Firmware aktiviert die RTC-Pufferung der StopWatch. Das Skript verwendet die aktuelle Host-Zeit, rechnet sie in die gewählte Zeitzone um und wartet auf die Bestätigung der Uhr. Der RTC speichert Ortszeit. Bei dauerhaftem Offline-Betrieb kann die Ortszeit nach einem Sommerzeitwechsel über USB neu gesetzt werden.
 
 ### Heimnetz über USB einrichten
 
