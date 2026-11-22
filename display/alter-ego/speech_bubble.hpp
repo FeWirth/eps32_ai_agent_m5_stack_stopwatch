@@ -15,7 +15,7 @@ struct ClockTime {
   int minute;
 };
 
-enum class WifiStatus { Offline, Connecting, Connected };
+enum class WifiStatus { Offline, Connecting, Connected, Hotspot };
 
 class SpeechBubble {
  public:
@@ -57,16 +57,17 @@ class SpeechBubble {
 
   template <typename ReadClock>
   void update(uint32_t now, ReadClock read_clock, WifiStatus wifi) {
+    if (startup_ == Startup::Done && wifi != wifi_) view_ = View::Wifi;
     wifi_ = wifi;
     if (startup_ == Startup::Greeting && now - startup_at_ >= 1500) {
       startup_ = Startup::Network;
       startup_at_ = now;
       view_ = View::Wifi;
     }
-    if (startup_ == Startup::Network && wifi == WifiStatus::Connected) {
+    if (startup_ == Startup::Network && online(wifi)) {
       startup_ = Startup::Connected;
       startup_at_ = now;
-    } else if (startup_ == Startup::Connected && wifi != WifiStatus::Connected) {
+    } else if (startup_ == Startup::Connected && !online(wifi)) {
       startup_ = Startup::Network;
     } else if (startup_ == Startup::Connected && now - startup_at_ >= 1200) {
       startup_ = Startup::Done;
@@ -120,10 +121,15 @@ class SpeechBubble {
   enum class View { Text, Clock, Wifi };
   enum class Startup { Done, Greeting, Network, Connected };
 
+  static bool online(WifiStatus wifi) {
+    return wifi == WifiStatus::Connected || wifi == WifiStatus::Hotspot;
+  }
+
   static std::string_view wifi_text(WifiStatus wifi) {
     switch (wifi) {
       case WifiStatus::Connecting: return "WLAN: Verbinde ...";
-      case WifiStatus::Connected: return "WLAN: Verbunden";
+      case WifiStatus::Connected: return "Heim-WLAN aktiv";
+      case WifiStatus::Hotspot: return "iPhone-Hotspot aktiv";
       case WifiStatus::Offline: return "WLAN: Offline";
     }
     return "WLAN: Offline";

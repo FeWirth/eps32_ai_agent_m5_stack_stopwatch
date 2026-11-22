@@ -136,6 +136,17 @@ TEST("wifi networks: joining moves a network first once and marks it tested") {
   CHECK(!n.joined("Elsewhere"));
 }
 
+TEST("wifi networks: fallback success preserves the preferred first network") {
+  MemoryStorage storage;
+  hg::WifiNetworks n;
+  n.add("Home", "password1");
+  n.add("iPhone", "password2");
+  CHECK(n.joined("iPhone", false));
+  CHECK(!n.joined("iPhone", false));
+  CHECK(n.save(storage));
+  CHECK_EQ(names(hg::WifiNetworks::load(storage)), std::string("Home,iPhone*"));
+}
+
 TEST("wifi networks: a list that can't be saved leaves the mirror alone") {
   MemoryStorage s;
   s.kv = {{"wifi_ssid", "Home"}};

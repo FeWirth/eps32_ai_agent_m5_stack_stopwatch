@@ -53,3 +53,9 @@ Die Reihenfolge der Audiopause und die Ergebnisse der drei Akkutests stehen im [
 Die Löffel haben einen separaten Übergang von 760 ms, ausgelöst durch die Inaktivitätszustände. Während sie nach 5 s aus dem Bild sinken, bleibt der restliche Avatar bereits stehen. Während des Übergangs rendert die Firmware mit rund 20 Bildern pro Sekunde. Beim Aufwecken beginnt der erste Frame mit den Löffeln außerhalb des sichtbaren Bereichs. Die Mac-Vorschau verwendet dieselbe Inaktivitätssteuerung. Die Animation wurde gebaut, mit gerenderten Zwischenbildern geprüft und verifiziert auf die StopWatch geflasht. Die Darstellung auf der Uhr wurde noch nicht visuell geprüft.
 
 Nach vollständigem Ausschalten ohne USB kann die StopWatch ihre RTC-Zeit verlieren. Sobald WLAN eine IP-Adresse liefert, stellt SNTP die Berliner Ortszeit automatisch wieder her. Der [Gerätetest im Entwicklungslog](entwicklungslog.md#21-november-2026--zeitsynchronisation-nach-vollständigem-ausschalten) prüft den Rückschreibvorgang bei zuvor ungültiger RTC.
+
+## iPhone-Hotspot
+
+Himmelsgravur behält das erste gespeicherte WLAN als bevorzugtes Netz. `provision-wifi.py --fallback` speichert den Hotspot ohne Änderung der Heimnetz-Priorität. Die Rückkehr startet nach zwei Sichtungen des Heimnetzes mit mindestens −75 dBm im Abstand von etwa 20 s. Während eines laufenden Gesprächs bleibt die Verbindung bestehen. Einrichtung und Gerätetest stehen in der [Himmelsgravur-Anleitung](../display/alter-ego/README.md#iphone-hotspot-als-rückfall).
+
+Die manuelle Netzwahl liegt auf der zweiten Himmelsgravur-Ansicht. Ein Wisch vom Avatar nach links öffnet sie. Details zur Automatik und manuellen Auswahl stehen in der [Himmelsgravur-Anleitung](../display/alter-ego/README.md#verbindung-manuell-wählen).

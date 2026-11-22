@@ -26,6 +26,7 @@ static uint32_t milliseconds() {
 @interface AvatarView : NSView
 - (NSBitmapImageRep*)renderBitmap;
 - (void)showBatteryPreview;
+- (void)showNetworkPreview;
 @end
 
 @implementation AvatarView {
@@ -34,6 +35,8 @@ static uint32_t milliseconds() {
   std::optional<uint32_t> _started;
   std::optional<alter_ego::Idle> _idle;
   alter_ego::Idle::Mode _mode;
+  int _manual;
+  int _active;
 }
 
 - (void)showBatteryPreview {
@@ -43,16 +46,25 @@ static uint32_t milliseconds() {
   _avatar.touch(false, 233, 215, now);
 }
 
+- (void)showNetworkPreview {
+  const uint32_t now = milliseconds();
+  _avatar.touch(true, 340, 220, now);
+  _avatar.touch(true, 145, 220, now);
+  _avatar.touch(false, 0, 0, now);
+}
+
 - (NSBitmapImageRep*)renderBitmap {
   constexpr int size = alter_ego::size;
   const auto now = milliseconds();
   if (!_started) {
     _started = now;
+    _manual = -1;
     _idle.emplace(now);
     _mode = alter_ego::Idle::Mode::Animated;
     _avatar.speech().begin_startup(now);
   }
-  const auto wifi = now - *_started < 2400 ? alter_ego::WifiStatus::Connecting : alter_ego::WifiStatus::Connected;
+  _avatar.network_page().set_state({_active, _manual, -1, {true, true}});
+  const auto wifi = _active == 1 ? alter_ego::WifiStatus::Hotspot : alter_ego::WifiStatus::Connected;
   _avatar.speech().update(now, []() -> std::optional<alter_ego::ClockTime> {
     const auto timestamp = std::time(nullptr);
     std::tm local{};
@@ -102,6 +114,10 @@ static uint32_t milliseconds() {
     _avatar.touch(down, int(point.x * alter_ego::size / self.bounds.size.width),
                   int((self.bounds.size.height - point.y) * alter_ego::size / self.bounds.size.height),
                   now);
+    if (const auto picked = _avatar.network_page().take_selection()) {
+      _manual = _manual == *picked ? -1 : *picked;
+      _active = _manual < 0 ? 0 : _manual;
+    }
   }
   self.needsDisplay = YES;
 }
@@ -123,8 +139,9 @@ int main(int argc, const char** argv) {
   @autoreleasepool {
     const auto bounds = NSMakeRect(0, 0, alter_ego::size, alter_ego::size);
     auto* view = [[AvatarView alloc] initWithFrame:bounds];
-    if (argc == 2 || (argc == 3 && std::string_view(argv[2]) == "--battery")) {
-      if (argc == 3) [view showBatteryPreview];
+    if (argc == 2 || argc == 3) {
+      if (argc == 3 && std::string_view(argv[2]) == "--battery") [view showBatteryPreview];
+      if (argc == 3 && std::string_view(argv[2]) == "--network") [view showNetworkPreview];
       auto* png = [[view renderBitmap] representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
       NSError* error = nil;
       if ([png writeToFile:@(argv[1]) options:0 error:&error]) return 0;

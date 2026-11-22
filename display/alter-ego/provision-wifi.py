@@ -4,10 +4,13 @@
 import argparse
 import getpass
 import json
+import re
 import sys
 import time
 
 import serial
+
+ANSI = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 
 def quote(value):
@@ -18,7 +21,8 @@ def command(port, line):
     port.write((line + "\n").encode("ascii"))
     deadline = time.monotonic() + 4
     while time.monotonic() < deadline:
-        reply = port.readline().decode(errors="replace").strip()
+        raw = port.readline().decode(errors="replace")
+        reply = ANSI.sub("", raw).rstrip("\r\n").rsplit("\r", 1)[-1].strip()
         if reply.startswith(("@wifi ", "@ok ", "@error ")):
             return reply
     raise SystemExit("Keine Antwort von der StopWatch.")
@@ -36,7 +40,10 @@ def main():
     parser.add_argument("port")
     parser.add_argument("ssid", nargs="?", default="Zweibahnstrasse")
     parser.add_argument("--status", action="store_true", help="show saved networks and active connection")
+    parser.add_argument("--fallback", action="store_true", help="save without promoting the network")
     args = parser.parse_args()
+    if args.status and args.fallback:
+        parser.error("--status and --fallback cannot be combined")
 
     if not args.status:
         if not sys.stdin.isatty():
@@ -52,8 +59,12 @@ def main():
         if args.status:
             print(json.dumps(status(port), ensure_ascii=False))
             return
+        status(port)
         if command(port, f"wifi add {quote(args.ssid)} {quote(password)}") != "@ok wifi add":
             raise SystemExit("Das WLAN konnte nicht gespeichert werden.")
+        if args.fallback:
+            print(f"{args.ssid} als zusätzliches WLAN gespeichert. Das bevorzugte Netz bleibt an erster Stelle.")
+            return
         if command(port, f"wifi join {quote(args.ssid)}") != "@ok wifi join":
             raise SystemExit("Das gespeicherte WLAN konnte nicht ausgewählt werden.")
         deadline = time.monotonic() + 30

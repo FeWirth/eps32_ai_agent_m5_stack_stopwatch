@@ -7,6 +7,7 @@
 #include "hg/hal.hpp"
 #include "speech_bubble.hpp"
 #include "battery_drawer.hpp"
+#include "network_page.hpp"
 
 #define HG_ALTER_EGO_SPEECH_BUBBLE 1
 
@@ -20,11 +21,15 @@ struct Point {
 
 class Avatar {
  public:
+  NetworkPage& network_page() { return network_; }
   SpeechBubble& speech() { return speech_; }
   void set_power(const std::optional<hg::PowerStatus>& power) { battery_.set_power(power); }
 
   void touch(bool down, int x, int y, uint32_t now) {
-    if (battery_.touch(down, x, y, now)) return;
+    const bool on_page = network_.visible();
+    if (!on_page && battery_.touch(down, x, y, now)) return;
+    network_.touch(down, x, y);
+    if (on_page) return;
     speech_.touch(down, x, y, now);
     if (down && !held_) awakened_ = now;
     held_ = down;
@@ -52,6 +57,13 @@ class Avatar {
     swapped_ = info.swap_bytes;
     std::fill_n(pixels_, size * size, uint16_t{0});
 
+    hg::Canvas canvas(pixels_, size, size, swapped_);
+    if (network_.visible()) {
+      network_.draw(canvas);
+      network_.draw_indicator(canvas);
+      display.flush(0, size);
+      return true;
+    }
     if (animate) animation_at_ = now;
     // The animation frequencies are multiples of 0.05 radians per second.
     const float t = static_cast<float>(std::fmod(animation_at_ * .001, 40.0 * pi));
@@ -118,8 +130,8 @@ class Avatar {
       }
       if (lowered < 1.f) spoon(sign, t, pulse, lowered);
     }
-    hg::Canvas canvas(pixels_, size, size, swapped_);
     speech_.draw(canvas);
+    network_.draw_indicator(canvas);
     battery_.draw(canvas, pixels_, now);
     display.flush(0, size);
     return true;
@@ -219,6 +231,7 @@ class Avatar {
 
   SpeechBubble speech_;
   BatteryDrawer battery_;
+  NetworkPage network_;
   uint16_t* pixels_ = nullptr;
   uint32_t spoon_started_ = 0;
   float spoon_from_ = 0, spoon_target_ = 0;

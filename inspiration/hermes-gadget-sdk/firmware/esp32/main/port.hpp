@@ -700,11 +700,15 @@ class EspUpdater final : public hg::Updater {
 
 class Wifi {
  public:
-  void begin(NvsStorage& storage);
+  void begin(NvsStorage& storage, bool prefer_first = false);
   void reconfigure();  // join the first saved network
   // The saved networks changed through the console: rejoin unless the device is on the first one.
   void networks_changed();
-  void scan_done();
+  void scan_done(bool in_turn);
+  void toggle_network(int index);
+  int manual_network() const { return manual_network_; }
+  bool has_network(int index) const { return index >= 0 && static_cast<size_t>(index) < networks_.size(); }
+  int network_index() const;
   // The network the device is on, or empty.
   std::string current() const { return link_up_ ? ssid_ : std::string(); }
   bool connecting() const { return scanning_ || retry_.attempting(); }
@@ -741,6 +745,10 @@ class Wifi {
   bool static_ip_ = false;  // DHCP stopped for a reused lease (CONFIG_HG_WIFI_REUSE_IP)
   std::string ssid_, password_;  // what the station is configured for
   bool link_up_ = false, scanning_ = false;
+  bool prefer_first_ = false, home_scan_ = false, returning_home_ = false;
+  int manual_network_ = -1;
+  unsigned home_seen_ = 0;
+  uint32_t home_scan_at_ = 0;
   bool auto_setup_ = false, auto_setup_tried_ = false;
   bool joining_ = false, wait_disconnect_ = false;
   uint32_t trial_at_ = 0, setup_until_ = 0, close_at_ = 0;

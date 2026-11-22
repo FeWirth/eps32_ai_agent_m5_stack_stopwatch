@@ -101,12 +101,13 @@ bool WifiNetworks::move_first(std::string_view ssid) {
   return true;
 }
 
-bool WifiNetworks::joined(std::string_view ssid) {
+bool WifiNetworks::joined(std::string_view ssid, bool promote) {
   const size_t at = find(ssid);
-  if (at == size() || (at == 0 && list_[0].tested)) return false;
-  move_first(ssid);
-  list_[0].tested = true;
-  return true;
+  if (at == size()) return false;
+  const bool was_tested = list_[at].tested;
+  list_[at].tested = true;
+  const bool moved = promote && move_first(ssid);
+  return !was_tested || moved;
 }
 
 void WifiNetworks::put_first(std::string_view ssid, std::string_view password, bool tested) {

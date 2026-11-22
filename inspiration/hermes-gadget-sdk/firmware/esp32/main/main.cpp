@@ -226,7 +226,7 @@ void dispatch(hg::App& app, hgp::Event& ev) {
       app.on_network(false, text ? text : "");
       break;
     case EventType::WifiStarted: g_wifi.reconfigure(); break;
-    case EventType::WifiScanDone: g_wifi.scan_done(); break;
+    case EventType::WifiScanDone: g_wifi.scan_done(app.in_turn()); break;
     case EventType::WifiProvision:
       if (ev.len == sizeof(hg::WifiCredentials)) g_wifi.provision(*reinterpret_cast<const hg::WifiCredentials*>(ev.data));
       break;
@@ -325,7 +325,11 @@ extern "C" void app_main(void) {
   g_updater.start();  // a new firmware on probation starts its clock now
 
   // Wi-Fi first: the radio is the entropy source for the device key.
+#ifdef HG_ALTER_EGO_SPEECH_BUBBLE
+  g_wifi.begin(g_storage, true);
+#else
   g_wifi.begin(g_storage);
+#endif
 
   hg::Hal hal;
   hal.system = &g_system;
@@ -584,6 +588,7 @@ extern "C" void app_main(void) {
           const auto& sample = *reinterpret_cast<const hgp::TouchSample*>(ev.data);
           const auto now = g_system.now_ms();
           if (avatar_idle.touch(sample.touching, now)) avatar->touch(sample.touching, sample.x, sample.y, now);
+          if (const auto selection = avatar->network_page().take_selection()) g_wifi.toggle_network(*selection);
           next_avatar_frame = now;
         } else if (avatar_clock && ev.type == hgp::EventType::Console && ev.console) {
           const std::string_view line{reinterpret_cast<const char*>(ev.data), ev.len};
@@ -643,15 +648,21 @@ extern "C" void app_main(void) {
       next_avatar_frame = now;
     }
     if (!dark && static_cast<int32_t>(now - next_avatar_frame) >= 0) {
-      const auto wifi = wifi_connected ? alter_ego::WifiStatus::Connected
-                      : g_wifi.connecting() ? alter_ego::WifiStatus::Connecting
+      const int selected = g_wifi.network_index();
+      const bool connecting = g_wifi.connecting();
+      avatar->network_page().set_state({
+          wifi_connected ? selected : -1, g_wifi.manual_network(), connecting ? selected : -1,
+          {g_wifi.has_network(0), g_wifi.has_network(1)}});
+      const auto wifi = wifi_connected ? (selected == 1 ? alter_ego::WifiStatus::Hotspot
+                                                       : alter_ego::WifiStatus::Connected)
+                      : connecting ? alter_ego::WifiStatus::Connecting
                                             : alter_ego::WifiStatus::Offline;
       avatar->speech().update(now, [&avatar_clock] { return avatar_clock->read(); }, wifi);
       avatar->set_power(app.power_status());
       const bool animate = mode == alter_ego::Idle::Mode::Animated;
       avatar->draw(g_amoled, now, animate);
       if (was_dark) g_amoled.set_backlight(100);
-      next_avatar_frame = now + (animate || avatar->spoons_moving(now) ? 50 : 1000);
+      next_avatar_frame = now + (!avatar->network_page().visible() && (animate || avatar->spoons_moving(now)) ? 50 : 500);
     }
 #endif
   }

@@ -16,11 +16,15 @@
 
 namespace hgp {
 namespace {
+constexpr uint32_t kHomeScanIntervalMs = 20000;
+constexpr int kHomeMinRssi = -75;
+
 uint32_t now_ms() { return static_cast<uint32_t>(esp_timer_get_time() / 1000); }
 esp_netif_t* station() { return esp_netif_get_handle_from_ifkey("WIFI_STA_DEF"); }
 }
 
-void Wifi::begin(NvsStorage& storage) {
+void Wifi::begin(NvsStorage& storage, bool prefer_first) {
+  prefer_first_ = prefer_first;
   storage_ = &storage;
   fast_.load(storage.get(hg::WifiFastJoin::kStorageKey));
   ESP_ERROR_CHECK(esp_netif_init());
@@ -126,8 +130,10 @@ void Wifi::forget_unsaved_ap() {
 
 void Wifi::join(const std::string& ssid, const std::string& password) {
   configured_ = false;
-  if (scanning_) esp_wifi_scan_stop();
-  scanning_ = false;
+  link_up_ = false;
+  if (scanning_ || home_scan_) esp_wifi_scan_stop();
+  scanning_ = home_scan_ = returning_home_ = false;
+  home_seen_ = 0;
   retry_.connected();  // nothing pending until this join is under way
   hold_while_attempting();
   esp_wifi_disconnect();
@@ -157,7 +163,33 @@ void Wifi::reconfigure() {
   join(ssid, pass);
 }
 
+int Wifi::network_index() const {
+  const auto at = networks_.find(ssid_);
+  return at < networks_.size() ? static_cast<int>(at) : -1;
+}
+
+void Wifi::toggle_network(int index) {
+  if (!prefer_first_ || http_ || !has_network(index)) return;
+  home_seen_ = 0;
+  home_scan_at_ = now_ms() + kHomeScanIntervalMs;
+  if (manual_network_ == index) {
+    manual_network_ = -1;
+    if (!link_up_) reconfigure();
+    return;
+  }
+  manual_network_ = index;
+  if (home_scan_) {
+    esp_wifi_scan_stop();
+    home_scan_ = false;
+  }
+  if (link_up_ && network_index() == index && !returning_home_) return;
+  pick_.reset(networks_.size(), index);
+  const auto& network = networks_.all()[index];
+  join(network.ssid, network.password);
+}
+
 void Wifi::networks_changed() {
+  manual_network_ = -1;
   networks_ = hg::WifiNetworks::load(*storage_);
   if (networks_.dirty()) networks_.save(*storage_);
   forget_unsaved_ap();
@@ -171,6 +203,14 @@ void Wifi::networks_changed() {
 void Wifi::disconnected() {
   wait_disconnect_ = false;
   link_up_ = false;
+  if (home_scan_) esp_wifi_scan_stop();
+  home_scan_ = false;
+  home_seen_ = 0;
+  if (returning_home_) {
+    pick_.reset(networks_.size());
+    join(networks_.all().front().ssid, networks_.all().front().password);
+    return;
+  }
   if (configured_) {
     if (fast_.failed()) {
       // The fast join didn't work: join normally at once, without counting it against
@@ -191,9 +231,11 @@ void Wifi::connected(hg::App& app) {
   hold_while_attempting();
   link_up_ = true;
   remember_ap();
-  if (!joining_ && networks_.joined(ssid_)) {
+  home_seen_ = 0;
+  home_scan_at_ = now_ms() + kHomeScanIntervalMs;
+  if (!joining_ && networks_.joined(ssid_, !prefer_first_)) {
     networks_.save(*storage_);
-    pick_.reset(networks_.size());
+    if (!prefer_first_) pick_.reset(networks_.size());
   }
   if (!joining_ || wait_disconnect_) return;
   wifi_ap_record_t ap = {};
@@ -243,13 +285,23 @@ void Wifi::tick(hg::App& app, uint32_t now) {
                 (close_at_ && static_cast<int32_t>(now - close_at_) >= 0))) app.close_wifi_setup();
   if (configured_ && retry_.due(now)) attempt(now);
   hold_while_attempting();
-  apply_power_save(now, app.in_turn());
+  const bool in_turn = app.in_turn();
+  if (prefer_first_ && manual_network_ < 0 && link_up_ && !http_ && !in_turn && !home_scan_ &&
+      !returning_home_ && networks_.size() > 1 && ssid_ != networks_.all().front().ssid &&
+      static_cast<int32_t>(now - home_scan_at_) >= 0) {
+    wifi_scan_config_t scan = {};
+    scan.ssid = reinterpret_cast<uint8_t*>(const_cast<char*>(networks_.all().front().ssid.c_str()));
+    home_scan_ = esp_wifi_scan_start(&scan, false) == ESP_OK;
+    home_scan_at_ = now + kHomeScanIntervalMs;
+    if (!home_scan_) home_seen_ = 0;
+  }
+  apply_power_save(now, in_turn);
 }
 
 void Wifi::attempt(uint32_t now) {
   scanning_ = false;
   // Not while a phone setup tries its network.
-  if (!joining_ && pick_.should_scan()) {
+  if (!joining_ && manual_network_ < 0 && pick_.should_scan()) {
     wifi_scan_config_t scan = {};
     if (esp_wifi_scan_start(&scan, false) == ESP_OK) {
       scanning_ = true;  // scan_done() makes the attempt
@@ -265,13 +317,31 @@ void Wifi::attempt(uint32_t now) {
   if (esp_wifi_connect() != ESP_OK) retry_.start_failed(now);
 }
 
-void Wifi::scan_done() {
+void Wifi::scan_done(bool in_turn) {
   uint16_t found = 0;
   esp_wifi_scan_get_ap_num(&found);
   std::vector<wifi_ap_record_t> records(std::min<uint16_t>(found, 20));
   uint16_t count = static_cast<uint16_t>(records.size());
   if (count) esp_wifi_scan_get_ap_records(&count, records.data());  // frees the scan's list
   else esp_wifi_clear_ap_list();
+  if (home_scan_) {
+    home_scan_ = false;
+    if (!link_up_ || manual_network_ >= 0 || http_ || in_turn || networks_.empty()) {
+      home_seen_ = 0;
+      return;
+    }
+    const auto& home = networks_.all().front().ssid;
+    const bool visible = std::any_of(records.begin(), records.begin() + count, [&](const auto& ap) {
+      return home == reinterpret_cast<const char*>(ap.ssid) && ap.rssi >= kHomeMinRssi;
+    });
+    home_seen_ = visible ? home_seen_ + 1 : 0;
+    if (home_seen_ >= 2) {
+      home_seen_ = 0;
+      returning_home_ = esp_wifi_disconnect() == ESP_OK;
+      if (returning_home_) ESP_LOGI("hg.wifi", "returning to preferred network %s", home.c_str());
+    }
+    return;
+  }
   if (!scanning_ || !configured_ || joining_ || networks_.empty()) return;
   scanning_ = false;
   std::vector<std::string> saved;

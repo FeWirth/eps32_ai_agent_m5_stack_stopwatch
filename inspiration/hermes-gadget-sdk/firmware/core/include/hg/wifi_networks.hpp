@@ -47,9 +47,9 @@ class WifiNetworks {
   bool forget(std::string_view ssid);
   // Moves a saved network first. False when it isn't saved or already first.
   bool move_first(std::string_view ssid);
-  // The device joined this network: it goes first and counts as tested.
+  // The device joined this network: mark it tested and optionally move it first.
   // False when nothing changed (or it isn't saved).
-  bool joined(std::string_view ssid);
+  bool joined(std::string_view ssid, bool promote = true);
   // Saves the network first, dropping the last one when the list is full.
   void put_first(std::string_view ssid, std::string_view password, bool tested);
 

@@ -43,3 +43,19 @@ Nach einer längeren Ausschaltphase ohne USB meldete die RX8130CE im USB-Test �
 Die Firmware startet SNTP nach dem Erhalt einer WLAN-IP-Adresse und bei Wiederverbindung erneut. Sie liefert Berliner Ortszeit aus der synchronisierten Systemuhr und schreibt diese in die Hardware-Uhr zurück. Bei einem Offline-Start bleibt der RX8130CE die Zeitquelle, solange seine Daten gültig sind.
 
 Test auf derselben StopWatch ohne manuelles Stellen: RTC vor dem Flash ungültig. Nach dem Neustart protokollierte die Firmware nach etwa 6,7 s `SNTP Berlin 02:12:46; RTC verified`. Eine nachfolgende USB-Abfrage las `02:13` direkt aus der Hardware-Uhr.
+
+## 22. November 2026 · iPhone-Hotspot als WLAN-Rückfall
+
+Himmelsgravur behält die gespeicherte WLAN-Reihenfolge bei. Nach der Verbindung mit einem Rückfallnetz bleibt das erste Netz das bevorzugte Heimnetz. Im Rückfallnetz sucht die Uhr außerhalb eines laufenden Gesprächs im Abstand von 20 s nach dem Heimnetz. Bei zwei aufeinanderfolgenden Sichtungen mit mindestens −75 dBm kehrt sie dorthin zurück. Die übrigen SDK-Profile behalten ihre bisherige WLAN-Auswahl.
+
+Der Host-Test für gespeicherte WLANs und der ESP32-S3-Build liefen durch. Auf der StopWatch wurde die Firmware per Flash-Prüfsumme verifiziert. Nach dem Neustart bestätigte die USB-Konsole das gespeicherte Heimnetz als verbunden. Zum Gerätetest mit dem iPhone fehlen noch dessen lokal eingegebene Hotspot-Daten.
+
+Der Hotspot wurde mit verdeckter Passworteingabe über USB gespeichert. Beim manuellen Verbindungstest meldete die Uhr den iPhone-Hotspot erstmals als geprüft und aktiv. Danach wurden Heimnetz-Priorität und Heimnetz-Verbindung wiederhergestellt. Der automatische Wechsel bei Reichweitenverlust und Rückkehr bleibt als eigener Gerätetest offen.
+
+## 22. November 2026 · Manuelle WLAN-Auswahl
+
+Die zweite Himmelsgravur-Ansicht nutzt den nativen Canvas. Ein horizontaler Wisch öffnet oder schließt die Ansicht. Die Schalter fixieren exklusiv das erste beziehungsweise zweite gespeicherte Netz bis zum erneuten Antippen oder Neustart. Die Schalterstellung zeigt auch in der Automatik das aktive Netz (rechts, grün). Ein goldener Rahmen markiert die manuelle Auswahl. Der tatsächliche Linkstatus wird erst nach der IP-Meldung als verbunden angezeigt. Die Sprechblase nennt den Netztyp.
+
+Mac-Vorschau, Skript-Gestentest und ESP32-S3-Build waren erfolgreich. Die neue Firmware wurde per Flash-Prüfsumme verifiziert. Nach Neustart bestätigte die USB-Konsole Heim-WLAN und beide gespeicherten Netze. Der Touch-Test auf der Uhr steht aus.
+
+Felix bestätigte auf der StopWatch die korrigierte Schalteranzeige mit grünem Schalter rechts für das aktive und grauem Schalter links für das inaktive Netz.

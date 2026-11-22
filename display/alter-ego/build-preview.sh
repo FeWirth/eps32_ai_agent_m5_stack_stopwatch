@@ -19,3 +19,4 @@ clang++ -std=c++17 -O2 -Wall -Wextra -Werror -fobjc-arc -framework AppKit \
   -o "$app/Contents/MacOS/Alter-Ego"
 "$app/Contents/MacOS/Alter-Ego" "$PWD/build/preview.png"
 "$app/Contents/MacOS/Alter-Ego" "$PWD/build/battery-preview.png" --battery
+"$app/Contents/MacOS/Alter-Ego" "$PWD/build/network-preview.png" --network

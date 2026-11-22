@@ -64,3 +64,21 @@ Der Regler des M5PM1 liefert die Akkuspannung. Aus ihr schätzt das SDK den Lade
 Nach 5 Sekunden ohne Eingabe hält die Avatar-Animation an und Simsala senkt die Löffel in einem 760-ms-Übergang aus dem runden Bild. Beim Aufwecken hebt er die Löffel wieder an. Die Mac-Vorschau bildet die gleichen Zeitgrenzen und Übergänge ab. Uhrzeit und WLAN-Status können sich weiter ändern. Nach 10 Sekunden schaltet der CO5300 das Display aus. Ein Tipp weckt die Anzeige, ohne gleichzeitig die Sprechblase umzuschalten. Die rote Taste schaltet die Anzeige auch manuell aus oder ein.
 
 Bei dunklem Display und im Akkubetrieb darf der ESP32 automatisch in Light Sleep gehen. USB hält die Konsole erreichbar. Über die USB-Konsole zeigt `avatar-power` den Anzeigemodus sowie Dauer und Anzahl der Light-Sleep-Phasen der letzten Schlafperiode.
+
+## iPhone-Hotspot als Rückfall
+
+Auf dem iPhone unter **Einstellungen → Persönlicher Hotspot** den Zugriff für andere erlauben und die Kompatibilität maximieren. Für die erste Verbindung die Hotspot-Einstellungen geöffnet lassen. Die StopWatch per USB anschließen. Den Skriptaufruf aus dem Projektstamm mit dem aktuellen StopWatch-Port und dem Hotspot-Namen ausführen:
+
+```sh
+PYTHONPATH="$PWD/display/alter-ego/build/local-python" \
+  "$HOME/.platformio/penv/.espidf-6.1.0/bin/python3" \
+  display/alter-ego/provision-wifi.py /dev/cu.usbmodem21401 "iPhone-Hotspot" --fallback
+```
+
+Das Passwort verdeckt im Terminal eingeben. Das Skript akzeptiert einen Hotspot-Namen aus druckbaren ASCII-Zeichen. Die Geräte-Reihenfolge lässt sich mit derselben Python-Umgebung und `provision-wifi.py PORT --status` prüfen. Beim Test soll die Uhr außerhalb des Heimnetzes den iPhone-Hotspot als aktives Netz melden. Zurück in Reichweite soll sie nach zwei ausreichend starken Sichtungen selbständig ins Heimnetz wechseln.
+
+Für den Hermes-Zugriff über Mobilfunk ist zusätzlich ein erreichbarer Hermes-Fernendpunkt auf dem Raspberry Pi erforderlich.
+
+### Verbindung manuell wählen
+
+Auf dem Avatar nach links wischen. In der Ansicht **Verbindung** lässt sich das gespeicherte Heim-WLAN oder der iPhone-Hotspot auswählen. Der grüne Schalter rechts zeigt das tatsächlich verbundene Netz, auch in der Automatik. Ein goldener Rahmen kennzeichnet eine manuelle Auswahl. Erneutes Antippen desselben Schalters oder ein Neustart schaltet zurück auf Automatik. Ein Wisch nach rechts oder ein Tipp auf **Avatar** führt zurück. Beim Verbindungswechsel und in der Netzwerkansicht der Sprechblase unterscheidet der Avatar Heim-WLAN und iPhone-Hotspot.

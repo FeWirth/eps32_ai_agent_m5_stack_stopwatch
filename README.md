@@ -15,6 +15,8 @@ Ziel ist ein kleiner Avatar auf der ESP32-S3-Uhr, über den man mit einem Hermes
 | Akkuansicht für Himmelsgravur | Auf der StopWatch installiert | Herunterziehen und Schließen am Gerät bestätigt. |
 | Energiesparen | Auf der StopWatch installiert | Animation hält nach 5 s an, AMOLED schaltet nach 10 s ab. Aufwecken per Tipp und leiser Akkubetrieb bestätigt. 20,7 s tatsächlicher Light Sleep während einer rund 27 s langen Doze-Periode gemessen. |
 | Löffel-Animation beim Einschlafen | Auf der StopWatch installiert | Firmware per Prüfsumme verifiziert. Die Animation wurde in der Mac-Vorschau geprüft. |
+| iPhone-Hotspot als WLAN-Rückfall | Firmware auf der StopWatch installiert | Heim-WLAN und iPhone-Hotspot am Gerät bestätigt. Der automatische Wechsel bei Reichweitenverlust und Rückkehr steht als Gerätetest aus. |
+| Verbindungsansicht für Himmelsgravur | Auf der StopWatch installiert | Swipe nach links, zwei Netzschalter mit grünem Verbindungsstatus und Netztyp in der Sprechblase. Darstellung des aktiven und inaktiven Schalters auf der Uhr bestätigt. |
 | Hermes über lokales WLAN | Offen | Agent und StopWatch verbinden und den vollständigen Gesprächsablauf testen. |
 | Bluetooth LE als Rückfall | Offen | Automatischen Wechsel zu Bluetooth und zurück zu WLAN umsetzen und testen. |
 | Optionaler Fernzugriff | Offen | Tailscale-Anbindung mit Einstellung zum Ein- und Ausschalten planen. |
