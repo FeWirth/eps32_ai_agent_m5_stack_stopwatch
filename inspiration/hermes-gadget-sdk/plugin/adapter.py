@@ -31,6 +31,7 @@ Secrets (``~/.hermes/.env``): ``GADGET_ACCESS_TOKEN`` (optional shared token).
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 import contextlib
 import json
 import logging
@@ -58,7 +59,7 @@ from gateway.platforms.base import (
 from gateway.platforms.event import MessageEvent, MessageType
 
 from . import audio as gaudio
-from . import compat, dashboard, imaging, ota, runtime, textfmt
+from . import compat, dashboard, imaging, ota, runtime, textfmt, vault_smoke
 from .battery_log import BatteryLog
 from .hub import DeviceHub, DeviceSession, HubDelegate
 from .store import DeviceStore
@@ -653,6 +654,20 @@ class GadgetAdapter(BasePlatformAdapter, HubDelegate):
         await self.handle_message(event)
 
     async def on_text(self, session: DeviceSession, msg_id: str, text: str) -> None:
+        vault = os.getenv("GADGET_TEST_VAULT")
+        if vault and text == vault_smoke.TEXT and msg_id.startswith("vault-smoke-"):
+            if (session.device_id != os.getenv("GADGET_TEST_DEVICE")
+                    or msg_id != f"vault-smoke-{session.device_id}"
+                    or not self._still_trusted(session)):
+                return
+            try:
+                await asyncio.to_thread(vault_smoke.record, Path(vault), msg_id)
+            except (OSError, ValueError):
+                logger.exception("Could not save StopWatch Daily Note test")
+                await session.send_reply("Vault-Test fehlgeschlagen", turn=msg_id)
+            else:
+                await session.send_reply("Vault gespeichert", turn=msg_id)
+            return
         await self._forward(session, self._event(session, msg_id, text, message_type=MessageType.TEXT))
 
     async def on_utterance(self, session: DeviceSession, msg_id: str, wav: bytes, seconds: float) -> None:

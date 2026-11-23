@@ -98,6 +98,8 @@ class App {
   // --- device features ------------------------------------------------------
   // Sends typed text as a user message (keyboards, simulator, console).
   void submit_text(std::string_view text);
+  bool send_test_text(std::string_view id, std::string_view text);
+  std::function<bool(std::string_view id, std::string_view text)> on_text_reply;
   // Records a sensor reading; reported to Hermes (rate limited).
   void set_sensor(std::string_view name, double value);
   // Reports a device event. With `notify_agent` the event is delivered to the

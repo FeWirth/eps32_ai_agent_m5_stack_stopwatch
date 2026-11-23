@@ -57,7 +57,7 @@ void Buttons::poll(hg::App& app) {
       b.pressed = down;
       b.stable = 0;
       ESP_LOGI(kTag, "%s GPIO%d %s", name(b.id), b.gpio, down ? "down" : "up");
-      app.on_button(b.id, down);
+      if (!intercept || !intercept(b.id, down)) app.on_button(b.id, down);
     }
   }
 }

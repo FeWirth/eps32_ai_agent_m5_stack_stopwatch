@@ -570,6 +570,33 @@ extern "C" void app_main(void) {
 #endif
   app.begin();
 #ifdef HG_ALTER_EGO_SPEECH_BUBBLE
+  const std::string vault_test_id = "vault-smoke-" + app.device_id();
+  const auto send_vault_test = [&] {
+    const bool sent = app.send_test_text(vault_test_id, "ESP32-Verbindung zu Hermes getestet.");
+    avatar->speech().show_message(sent ? "Sende Vault-Test ..." : "Hermes nicht bereit");
+    next_avatar_frame = g_system.now_ms();
+    return sent;
+  };
+  if (avatar) {
+    g_buttons.intercept = [&](hg::Button button, bool down) {
+      if (button != hg::Button::Cancel) return false;
+      if (down) {
+        if (avatar_idle.mode(g_system.now_ms()) == alter_ego::Idle::Mode::Dark)
+          avatar_idle.toggle_display(g_system.now_ms());
+        send_vault_test();
+      }
+      return true;
+    };
+    app.on_text_reply = [&](std::string_view id, std::string_view message) {
+      if (id != vault_test_id || (message != "Vault gespeichert" && message != "Vault-Test fehlgeschlagen")) return false;
+      avatar->speech().show_message(message);
+      next_avatar_frame = g_system.now_ms();
+      ESP_LOGI(TAG, "vault-test %s: %.*s", vault_test_id.c_str(), static_cast<int>(message.size()), message.data());
+      return true;
+    };
+  }
+#endif
+#ifdef HG_ALTER_EGO_SPEECH_BUBBLE
   hgp::console::begin(avatar_active);
 #else
   hgp::console::begin();
@@ -592,7 +619,9 @@ extern "C" void app_main(void) {
           next_avatar_frame = now;
         } else if (avatar_clock && ev.type == hgp::EventType::Console && ev.console) {
           const std::string_view line{reinterpret_cast<const char*>(ev.data), ev.len};
-          if (line == "avatar-power") {
+          if (line == "vault-test") {
+            ev.console->answer(send_vault_test() ? "@ok vault-test " + vault_test_id : "@error Hermes not ready");
+          } else if (line == "avatar-power") {
             const char* mode = avatar_mode == alter_ego::Idle::Mode::Dark ? "dark"
                              : avatar_mode == alter_ego::Idle::Mode::Still ? "still" : "animated";
             char reply[112];

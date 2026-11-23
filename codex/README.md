@@ -1,6 +1,6 @@
 # Projektübergabe
 
-Stand vom 21. November 2026. Bei einer Übernahme zuerst den [Projektstand](../README.md), die [Projektziele](../goal.md) und [AGENTS.md](../AGENTS.md) lesen. Das [Entwicklungslog](entwicklungslog.md) sammelt Hardware-Erkenntnisse, Messwerte und offene Gerätetests. Bei UI-Arbeit gilt zusätzlich [ui_elements/README.md](../ui_elements/README.md).
+Stand vom 23. November 2026. Bei einer Übernahme zuerst den [Projektstand](../README.md), die [Projektziele](../goal.md) und [AGENTS.md](../AGENTS.md) lesen. Das [Entwicklungslog](entwicklungslog.md) sammelt Hardware-Erkenntnisse, Messwerte und offene Gerätetests. Bei UI-Arbeit gilt zusätzlich [ui_elements/README.md](../ui_elements/README.md).
 
 ## Architektur und aktueller Stand
 
@@ -30,7 +30,7 @@ python3 -m esptool --chip esp32s3 --port /dev/cu.usbmodem21401 --baud 460800 \
 - Die ursprünglichen Git-Metadaten des SDK-Clones und der Patch der lokalen SDK-Änderungen liegen auf dieser SSD unter `.local/`. Im Projekt-Repository wird der SDK-Quellcode direkt versioniert.
 - Große generierte Build-Dateien, Python-Umgebungen, ESP-IDF-Komponentencaches und vollständige Flash-Backups bleiben lokal. Das Backup vor der ersten Avatar-Demo liegt auf dieser SSD unter `display/alter-ego/backups/`.
 - Nach einer Sitzung mit neuen Erkenntnissen diese Übergabe ergänzen. Bei verändertem Projektstand auch die Status-Tabelle der Haupt-README aktualisieren. Gerätebezogene Tests getrennt von Build- und Flash-Ergebnissen dokumentieren.
-- Der nächste geplante Integrationsschritt ist ein Gespräch mit Hermes über lokales WLAN. Dafür am normalen SDK-Profil und dessen [StopWatch-Dokumentation](../inspiration/hermes-gadget-sdk/STOPWATCH.md) ansetzen.
+- Der erste Test für die Sprachkommunikation ist unten dokumentiert. Als Nächstes folgt die Mikrofonaufnahme über dieselbe gepaarte WLAN-Verbindung.
 
 ## WLAN für Himmelsgravur
 
@@ -59,3 +59,9 @@ Nach vollständigem Ausschalten ohne USB kann die StopWatch ihre RTC-Zeit verlie
 Himmelsgravur behält das erste gespeicherte WLAN als bevorzugtes Netz. `provision-wifi.py --fallback` speichert den Hotspot ohne Änderung der Heimnetz-Priorität. Die Rückkehr startet nach zwei Sichtungen des Heimnetzes mit mindestens −75 dBm im Abstand von etwa 20 s. Während eines laufenden Gesprächs bleibt die Verbindung bestehen. Einrichtung und Gerätetest stehen in der [Himmelsgravur-Anleitung](../display/alter-ego/README.md#iphone-hotspot-als-rückfall).
 
 Die manuelle Netzwahl liegt auf der zweiten Himmelsgravur-Ansicht. Ein Wisch vom Avatar nach links öffnet sie. Details zur Automatik und manuellen Auswahl stehen in der [Himmelsgravur-Anleitung](../display/alter-ego/README.md#verbindung-manuell-wählen).
+
+## Erster Texttest zu Hermes und Obsidian
+
+Die StopWatch verbindet sich per SDK-WebSocket mit `ws://192.168.0.114:8765/gadget` und ist im Hermes-Gateway gepaart. Der gelb-orange Knopf (GPIO2) oder der USB-Konsolenbefehl `vault-test` sendet denselben festen Text mit einer stabilen Geräte-Test-ID.
+
+Auf dem Pi lädt Hermes das Projekt-Plugin aus `~/.hermes/plugins/gadget`. Der laufende User-Dienst `hermes-stopwatch-gateway.service` ist transient und bindet den Gadget-Port an die lokale Pi-Adresse. `GADGET_TEST_VAULT` aktiviert den Test und `GADGET_TEST_DEVICE` beschränkt ihn auf die gepaarte StopWatch. Der Adapter schreibt im Testpfad deterministisch in den vorhandenen Log-Abschnitt der Berliner Daily Note und bestätigt erst nach erfolgreichem Speichern. Die HTML-ID in der Zeile verhindert Dubletten. Der Dienst muss nach einem Pi-Neustart erneut gestartet werden.

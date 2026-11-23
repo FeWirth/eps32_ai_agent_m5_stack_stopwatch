@@ -59,3 +59,7 @@ Die zweite Himmelsgravur-Ansicht nutzt den nativen Canvas. Ein horizontaler Wisc
 Mac-Vorschau, Skript-Gestentest und ESP32-S3-Build waren erfolgreich. Die neue Firmware wurde per Flash-Prüfsumme verifiziert. Nach Neustart bestätigte die USB-Konsole Heim-WLAN und beide gespeicherten Netze. Der Touch-Test auf der Uhr steht aus.
 
 Felix bestätigte auf der StopWatch die korrigierte Schalteranzeige mit grünem Schalter rechts für das aktive und grauem Schalter links für das inaktive Netz.
+
+## 23. November 2026 · StopWatch → Hermes → Obsidian
+
+Auf der geflashten StopWatch wurde „Vault gespeichert“ nach Druck auf den gelb-orangen Knopf bestätigt. Die Bestätigung wird separat behandelt, damit sie keinen normalen Gesprächszug belegt. Nach dem erneuten Flash bestätigte die echte StopWatch zwei direkt aufeinanderfolgende USB-Auslösungen mit derselben ID. Der Git-Diff des privaten Vaults enthielt genau eine zusätzliche Logzeile mit Berliner Uhrzeit 04:18, Projektlink und Herkunft. Vault-Commit `df0e803` wurde vom Pi gepusht und auf dem Mac per Fast-Forward synchronisiert. Mikrofonaufnahme und Transkription folgen später.

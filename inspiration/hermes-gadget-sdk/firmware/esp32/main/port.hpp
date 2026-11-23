@@ -651,6 +651,7 @@ class Buttons {
  public:
   void begin(const ButtonConfig& cfg);
   void poll(hg::App& app);  // call every ~10 ms from the app task
+  std::function<bool(hg::Button, bool)> intercept;
 
  private:
   struct Button {

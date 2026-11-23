@@ -59,6 +59,9 @@ void begin(bool rtc) {
     cmd.help = "Read or set the StopWatch clock";
     cmd.func = &run;
     esp_console_cmd_register(&cmd);
+    cmd.command = "vault-test";
+    cmd.help = "Send the Obsidian test message";
+    esp_console_cmd_register(&cmd);
     cmd.command = "avatar-power";
     cmd.help = "Show avatar display and light sleep diagnostics";
     esp_console_cmd_register(&cmd);

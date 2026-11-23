@@ -700,6 +700,7 @@ void App::h_reply(const json::Value& m) {
     return;
   }
   if (mode_ == Mode::Listening) return;
+  if (on_text_reply && on_text_reply(m["turn"].as_string(), text)) return;
   reply_ = text;
   reply_final_ = true;
   scroll_ = 0;  // a finished reply is read from the top
@@ -1235,6 +1236,13 @@ void App::on_mic_samples(const int16_t* samples, size_t count) {
       update_model();
     }
   }
+}
+
+bool App::send_test_text(std::string_view id, std::string_view text) {
+  if (!can_talk() || in_turn()) return false;
+  auto msg = proto::message("text");
+  msg.set("id", std::string(id)).set("text", std::string(text));
+  return send(msg);
 }
 
 void App::submit_text(std::string_view text) {

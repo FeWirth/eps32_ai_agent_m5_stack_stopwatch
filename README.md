@@ -17,11 +17,11 @@ Ziel ist ein kleiner Avatar auf der ESP32-S3-Uhr, über den man mit einem Hermes
 | Löffel-Animation beim Einschlafen | Auf der StopWatch installiert | Firmware per Prüfsumme verifiziert. Die Animation wurde in der Mac-Vorschau geprüft. |
 | iPhone-Hotspot als WLAN-Rückfall | Firmware auf der StopWatch installiert | Heim-WLAN und iPhone-Hotspot am Gerät bestätigt. Der automatische Wechsel bei Reichweitenverlust und Rückkehr steht als Gerätetest aus. |
 | Verbindungsansicht für Himmelsgravur | Auf der StopWatch installiert | Swipe nach links, zwei Netzschalter mit grünem Verbindungsstatus und Netztyp in der Sprechblase. Darstellung des aktiven und inaktiven Schalters auf der Uhr bestätigt. |
-| Hermes über lokales WLAN | Offen | Agent und StopWatch verbinden und den vollständigen Gesprächsablauf testen. |
+| Hermes über lokales WLAN | Texttest auf der StopWatch bestätigt | Festen Testtext im Vault gespeichert, gleiche ID mehrfach bestätigt und genau eine Zeile bis zur Mac-Kopie synchronisiert. Sprache steht aus. |
 | Bluetooth LE als Rückfall | Offen | Automatischen Wechsel zu Bluetooth und zurück zu WLAN umsetzen und testen. |
 | Optionaler Fernzugriff | Offen | Tailscale-Anbindung mit Einstellung zum Ein- und Ausschalten planen. |
 
-Himmelsgravur rendert die Avatar-Oberfläche in der SDK-Ereignisschleife. Das SDK verwaltet WLAN und Gerätestatus. Der Hermes-Gesprächsablauf steht noch aus.
+Himmelsgravur rendert die Avatar-Oberfläche in der SDK-Ereignisschleife. Das SDK verwaltet WLAN und Gerätestatus. Die lokale Hermes-Verbindung ist mit einem Obsidian-Texttest bestätigt. Der Sprachablauf steht noch aus.
 
 ## Einstieg
 
