@@ -578,19 +578,33 @@ extern "C" void app_main(void) {
     return sent;
   };
   if (avatar) {
-    g_buttons.intercept = [&](hg::Button button, bool down) {
+    const auto show_voice_status = [&](std::string_view message) {
+      const auto now = g_system.now_ms();
+      avatar_idle.wake(now);
+      avatar->speech().show_message(message);
+      next_avatar_frame = now;
+    };
+    g_buttons.intercept = [&, show_voice_status](hg::Button button, bool down) {
       if (button != hg::Button::Cancel) return false;
-      if (down) {
-        if (avatar_idle.mode(g_system.now_ms()) == alter_ego::Idle::Mode::Dark)
-          avatar_idle.toggle_display(g_system.now_ms());
-        send_vault_test();
-      }
+      const bool was_listening = app.listening();
+      if (down) g_system.set_dozing(false);
+      app.on_button(hg::Button::Talk, down, true);
+      if (down)
+        show_voice_status(app.listening() ? "Hoere zu ..." : "Aufnahme nicht bereit");
+      else if (was_listening)
+        show_voice_status(app.in_turn() ? "Hermes denkt nach ..." : "Aufnahme nicht gesendet");
       return true;
     };
-    app.on_text_reply = [&](std::string_view id, std::string_view message) {
-      if (id != vault_test_id || (message != "Vault gespeichert" && message != "Vault-Test fehlgeschlagen")) return false;
-      avatar->speech().show_message(message);
-      next_avatar_frame = g_system.now_ms();
+    app.on_transcript = [show_voice_status](std::string_view text) {
+      show_voice_status(text);
+      ESP_LOGI(TAG, "voice transcript received (%u bytes)", static_cast<unsigned>(text.size()));
+    };
+    app.on_text_reply = [&, show_voice_status](std::string_view id, std::string_view message) {
+      show_voice_status(message);
+      if (id != vault_test_id || (message != "Vault gespeichert" && message != "Vault-Test fehlgeschlagen")) {
+        ESP_LOGI(TAG, "Hermes reply received (%u bytes)", static_cast<unsigned>(message.size()));
+        return false;
+      }
       ESP_LOGI(TAG, "vault-test %s: %.*s", vault_test_id.c_str(), static_cast<int>(message.size()), message.data());
       return true;
     };
@@ -616,6 +630,8 @@ extern "C" void app_main(void) {
           const auto now = g_system.now_ms();
           if (avatar_idle.touch(sample.touching, now)) avatar->touch(sample.touching, sample.x, sample.y, now);
           if (const auto selection = avatar->network_page().take_selection()) g_wifi.toggle_network(*selection);
+          if (const auto volume = avatar->network_page().take_volume_change())
+            app.set_speaker_volume(static_cast<uint8_t>(volume->percent), volume->save);
           next_avatar_frame = now;
         } else if (avatar_clock && ev.type == hgp::EventType::Console && ev.console) {
           const std::string_view line{reinterpret_cast<const char*>(ev.data), ev.len};
@@ -665,6 +681,7 @@ extern "C" void app_main(void) {
     if (!avatar) continue;
     const bool wifi_connected = !g_wifi.current().empty();
     avatar_clock->tick_network(wifi_connected);
+    if (app.listening()) avatar_idle.wake(now);
     const auto mode = avatar_idle.mode(now);
     const bool dark = mode == alter_ego::Idle::Mode::Dark;
     const auto& power = app.power_status();
@@ -677,6 +694,7 @@ extern "C" void app_main(void) {
       next_avatar_frame = now;
     }
     if (!dark && static_cast<int32_t>(now - next_avatar_frame) >= 0) {
+      avatar->network_page().set_volume(app.speaker_volume());
       const int selected = g_wifi.network_index();
       const bool connecting = g_wifi.connecting();
       avatar->network_page().set_state({

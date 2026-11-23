@@ -188,9 +188,7 @@ void App::begin() {
         return false;
       }
       int p = static_cast<int>(std::max<int64_t>(0, std::min<int64_t>(100, args["percent"].as_int())));
-      volume_ = static_cast<uint8_t>(p);
-      hal_.speaker->set_volume(volume_);
-      if (hal_.storage && !hal_.storage->set("volume", std::to_string(p))) log(LogLevel::Warn, "could not save volume");
+      set_speaker_volume(static_cast<uint8_t>(p), true);
       result.set("percent", p);
       return true;
     };
@@ -675,6 +673,7 @@ void App::h_status(const json::Value& m) {
 void App::h_transcript(const json::Value& m) {
   // What speech-to-text heard; shown as the user's line while Hermes works.
   user_echo_ = m["text"].as_string();
+  if (on_transcript && !user_echo_.empty()) on_transcript(user_echo_);
   last_turn_rx_ = now();
   if (status_ == "Sending...") status_.clear();
 }
@@ -1005,7 +1004,7 @@ void App::h_error(const json::Value& m) {
 // --------------------------------------------------------------------------
 // Input
 
-void App::on_button(Button button, bool pressed) {
+void App::on_button(Button button, bool pressed, bool force_hold) {
   if (ui_ && bench_ == Bench::None) ui_->mark_input();
   if (!wifi_setup_text_.empty()) {
     if (button == Button::Cancel && !pressed) close_wifi_setup();
@@ -1061,7 +1060,7 @@ void App::on_button(Button button, bool pressed) {
           if (prompt_armed(now())) answer_prompt(true);
           break;
         }
-        start_listening(talk_mode_ == TalkMode::Tap);
+        start_listening(!force_hold && talk_mode_ == TalkMode::Tap);
       } else if (mode_ == Mode::Listening && !hands_free_) {
         if (now() - mode_since_ < kMinUtteranceMs) {
           cancel_listening("too short");
@@ -1236,6 +1235,16 @@ void App::on_mic_samples(const int16_t* samples, size_t count) {
       update_model();
     }
   }
+}
+
+void App::set_speaker_volume(uint8_t percent, bool save) {
+  percent = std::min<uint8_t>(100, percent);
+  if (percent != volume_) {
+    volume_ = percent;
+    if (hal_.speaker) hal_.speaker->set_volume(volume_);
+  }
+  if (save && hal_.storage && !hal_.storage->set("volume", std::to_string(percent)))
+    log(LogLevel::Warn, "could not save volume");
 }
 
 bool App::send_test_text(std::string_view id, std::string_view text) {

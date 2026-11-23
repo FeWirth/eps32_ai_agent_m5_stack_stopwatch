@@ -92,7 +92,7 @@ class App {
   void on_transport_text(std::string_view text);
   void on_transport_binary(const uint8_t* data, size_t len);
   void on_transport_closed(std::string_view reason);
-  void on_button(Button button, bool pressed);
+  void on_button(Button button, bool pressed, bool force_hold = false);
   void on_mic_samples(const int16_t* samples, size_t count);
 
   // --- device features ------------------------------------------------------
@@ -142,6 +142,10 @@ class App {
   // A turn is under way: listening, waiting for a reply, or responding, which lasts until the
   // reply has finished playing. The port keeps Wi-Fi at full power until it ends.
   bool in_turn() const { return mode_ != Mode::Idle; }
+  uint8_t speaker_volume() const { return volume_; }
+  void set_speaker_volume(uint8_t percent, bool save);
+  bool listening() const { return mode_ == Mode::Listening; }
+  std::function<void(std::string_view)> on_transcript;
   // These run on the app task. Start returns private, on-screen instructions.
   std::function<std::string()> on_wifi_setup;
   std::function<void()> on_wifi_setup_close;

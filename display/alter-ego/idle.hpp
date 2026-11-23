@@ -26,6 +26,11 @@ class Idle {
     return !consume_gesture_;
   }
 
+  void wake(uint32_t now) {
+    activity_ = now;
+    manual_dark_ = false;
+  }
+
   void toggle_display(uint32_t now) {
     manual_dark_ = mode(now) != Mode::Dark;
     activity_ = now;

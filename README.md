@@ -4,7 +4,7 @@ Ziel ist ein kleiner Avatar auf der ESP32-S3-Uhr, über den man mit einem Hermes
 
 ## Projektstand
 
-**21. November 2026 · Meilenstein 1** — Auf der StopWatch ist Himmelsgravur mit hellerem Sternenkreis, Vollmond, WLAN-Status, Akkuansicht und Energiesparmodus installiert. Die Löffel-Animation ist ebenfalls installiert. Beide interaktiven Avatare sind für das runde 466 × 466 AMOLED verfügbar.
+**23. November 2026 · Meilenstein 2** — Sprachgespräche mit Hermes über die StopWatch sind im Heim-WLAN auf Deutsch und Englisch bestätigt. Die Uhr nimmt per Push-to-Talk auf und spielt Hermes-Antworten mit Jarvis High ab.
 
 | Bereich | Status | Nachweis oder offene Arbeit |
 | --- | --- | --- |
@@ -17,11 +17,14 @@ Ziel ist ein kleiner Avatar auf der ESP32-S3-Uhr, über den man mit einem Hermes
 | Löffel-Animation beim Einschlafen | Auf der StopWatch installiert | Firmware per Prüfsumme verifiziert. Die Animation wurde in der Mac-Vorschau geprüft. |
 | iPhone-Hotspot als WLAN-Rückfall | Firmware auf der StopWatch installiert | Heim-WLAN und iPhone-Hotspot am Gerät bestätigt. Der automatische Wechsel bei Reichweitenverlust und Rückkehr steht als Gerätetest aus. |
 | Verbindungsansicht für Himmelsgravur | Auf der StopWatch installiert | Swipe nach links, zwei Netzschalter mit grünem Verbindungsstatus und Netztyp in der Sprechblase. Darstellung des aktiven und inaktiven Schalters auf der Uhr bestätigt. |
-| Hermes über lokales WLAN | Texttest auf der StopWatch bestätigt | Festen Testtext im Vault gespeichert, gleiche ID mehrfach bestätigt und genau eine Zeile bis zur Mac-Kopie synchronisiert. Sprache steht aus. |
+| Hermes über lokales WLAN | Texttest auf der StopWatch bestätigt | Festen Testtext im Vault gespeichert, gleiche ID mehrfach bestätigt und genau eine Zeile bis zur Mac-Kopie synchronisiert. Push-to-Talk auf der StopWatch bestätigt. Das Uhrenmikrofon liefert ein Transkript und Hermes antwortet als Text. |
+| Lautstärkeregler | Auf der StopWatch installiert | Zweite Watchface-Seite, 0–100 %. Auf der Uhr auf 30 % gestellt und gespeicherten Wert per USB bestätigt. |
+| Gesprochene Hermes-Antwort | Lautsprecher auf der StopWatch bestätigt | Vollständige Gespräche über Uhrenmikrofon und Lautsprecher auf Deutsch und Englisch bestätigt. |
 | Bluetooth LE als Rückfall | Offen | Automatischen Wechsel zu Bluetooth und zurück zu WLAN umsetzen und testen. |
-| Optionaler Fernzugriff | Offen | Tailscale-Anbindung mit Einstellung zum Ein- und Ausschalten planen. |
+| Gateway-Autostart auf dem Pi | Offen | Dauerhaften Dienst einrichten und Wiederverbindung nach Pi-Neustart testen. |
+| Optionaler Fernzugriff | Offen | Hermes über den iPhone-Hotspot und einen verschlüsselten Fernendpunkt erreichbar machen. |
 
-Himmelsgravur rendert die Avatar-Oberfläche in der SDK-Ereignisschleife. Das SDK verwaltet WLAN und Gerätestatus. Die lokale Hermes-Verbindung ist mit einem Obsidian-Texttest bestätigt. Der Sprachablauf steht noch aus.
+Himmelsgravur rendert die Avatar-Oberfläche in der SDK-Ereignisschleife. Das SDK verwaltet WLAN und Gerätestatus. Die lokale Hermes-Verbindung ist mit einem Obsidian-Texttest bestätigt. Push-to-Talk mit lokaler Transkription und Textantwort ist am Gerät bestätigt. Der Pi-Transkriptionsanbieter wählt zwischen Deutsch und Englisch.
 
 ## Einstieg
 

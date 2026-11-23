@@ -63,3 +63,35 @@ Felix bestätigte auf der StopWatch die korrigierte Schalteranzeige mit grünem 
 ## 23. November 2026 · StopWatch → Hermes → Obsidian
 
 Auf der geflashten StopWatch wurde „Vault gespeichert“ nach Druck auf den gelb-orangen Knopf bestätigt. Die Bestätigung wird separat behandelt, damit sie keinen normalen Gesprächszug belegt. Nach dem erneuten Flash bestätigte die echte StopWatch zwei direkt aufeinanderfolgende USB-Auslösungen mit derselben ID. Der Git-Diff des privaten Vaults enthielt genau eine zusätzliche Logzeile mit Berliner Uhrzeit 04:18, Projektlink und Herkunft. Vault-Commit `df0e803` wurde vom Pi gepusht und auf dem Mac per Fast-Forward synchronisiert. Mikrofonaufnahme und Transkription folgen später.
+
+## 23. November 2026 · Push-to-Talk und lokale Transkription
+
+Der ESP32-S3-Build wurde per Flash-Prüfsumme verifiziert. Danach war die StopWatch wieder online und gepaart. Der Pi transkribierte die synthetische deutsche Testaufnahme vollständig mit faster-whisper Base. Der physische Tastentest über GPIO2 bestätigte 3,9 s Aufnahme vom Uhrenmikrofon. Die StopWatch meldete das empfangene Transkript 5,1 s nach Loslassen und die finale Hermes-Textantwort nach 10,9 s. Die USB-Diagnose protokollierte die Ereignisse und Textlängen.
+
+Felix bestätigte die angezeigte Begrüßung auf der Uhr. Der lokale Whisper-Anbieter wählt jetzt pro Aufnahme zwischen Deutsch und Englisch. Beide Sprachen wurden auf dem Pi mit synthetischen Testaufnahmen erfolgreich erkannt.
+
+## 23. November 2026 · Piper auf dem Uhrenlautsprecher
+
+Beide lokalen Piper-Stimmen erzeugten gültiges Mono-WAV mit 22,05 kHz. Das SDK spielte die deutsche Hermes-Testantwort auf der Uhr ab. Die Codec-Diagnose meldete 126 720 abgespielte Bytes, keine Underruns und keine verworfenen Bytes. Felix hörte die Antwort, meldete die Qualität aber als zu leise oder abgehackt. Der Gerätepegel wurde von der Standardstufe 70 auf 80 erhöht. Eine englische Ausgabe wurde als WAV auf dem Pi geprüft und steht am Uhrenlautsprecher noch aus.
+
+## 23. November 2026 · Lautstärkeregler auf der StopWatch
+
+Die zweite Watchface-Seite trägt den Titel Einstellungen und zeigt unter den WLAN-Schaltern den Lautstärkeregler. Die Ausgabe ändert sich beim Ziehen. NVS wird erst beim Loslassen beschrieben. Der Regler verwendet dieselbe Lautstärke wie USB-Konsole und Hermes-Aktion. Mac-Vorschau und Host-Gestentest prüften die Endwerte 0 und 100, Loslassen außerhalb der Leiste und den Wisch zurück. Der ESP32-S3-Build wurde per Flash-Prüfsumme verifiziert.
+
+Felix zog den Regler am Gerät auf 30 %. Die USB-Konsole las anschließend denselben Wert aus der gespeicherten Einstellung.
+
+## 23. November 2026 · Jarvis High
+
+Piper nutzt auf dem Pi die deutsche Jarvis-High-Variante von ufozone und die britisch-englische Variante von jgkawell. Beide Modelle erzeugten gültiges Mono-WAV mit 22,05 kHz. Die StopWatch spielte zwei Hermes-Testantworten ab. Der Codec meldete 132 480 beziehungsweise 144 000 abgespielte Bytes ohne Underruns oder verworfene Audiodaten. Der Wechsel erfolgte im vorhandenen Piper-Anbieter auf dem Pi.
+
+Felix bestätigte beide Jarvis-High-Stimmen am Uhrenlautsprecher.
+
+
+## 23. November 2026 · Meilenstein 2
+
+Felix bestätigte ein vollständiges englisches Gespräch über das Uhrenmikrofon. Damit sind Sprachaufnahme, Whisper-Transkription, Hermes-Antwort und Ausgabe mit Jarvis High im Heim-WLAN auf Deutsch und Englisch am Gerät geprüft. Der Lautstärkeregler speichert den gewählten Pegel.
+
+Offen für den Alltag:
+
+- **Pi-Autostart** – Den temporären Hermes-Gateway durch einen dauerhaft eingerichteten Dienst ersetzen und die erneute Verbindung der Uhr nach einem Pi-Neustart prüfen.
+- **Fernzugriff unterwegs** – Der iPhone-Hotspot wurde als WLAN getestet. Die Uhr braucht noch einen verschlüsselten Hermes-Fernendpunkt. Danach ein vollständiges Gespräch über Mobilfunk prüfen.

@@ -37,6 +37,7 @@ static uint32_t milliseconds() {
   alter_ego::Idle::Mode _mode;
   int _manual;
   int _active;
+  int _volume;
 }
 
 - (void)showBatteryPreview {
@@ -59,10 +60,12 @@ static uint32_t milliseconds() {
   if (!_started) {
     _started = now;
     _manual = -1;
+    _volume = 80;
     _idle.emplace(now);
     _mode = alter_ego::Idle::Mode::Animated;
     _avatar.speech().begin_startup(now);
   }
+  _avatar.network_page().set_volume(_volume);
   _avatar.network_page().set_state({_active, _manual, -1, {true, true}});
   const auto wifi = _active == 1 ? alter_ego::WifiStatus::Hotspot : alter_ego::WifiStatus::Connected;
   _avatar.speech().update(now, []() -> std::optional<alter_ego::ClockTime> {
@@ -114,6 +117,7 @@ static uint32_t milliseconds() {
     _avatar.touch(down, int(point.x * alter_ego::size / self.bounds.size.width),
                   int((self.bounds.size.height - point.y) * alter_ego::size / self.bounds.size.height),
                   now);
+    if (const auto change = _avatar.network_page().take_volume_change()) _volume = change->percent;
     if (const auto picked = _avatar.network_page().take_selection()) {
       _manual = _manual == *picked ? -1 : *picked;
       _active = _manual < 0 ? 0 : _manual;

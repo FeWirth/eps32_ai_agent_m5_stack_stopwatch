@@ -62,6 +62,24 @@ Die manuelle Netzwahl liegt auf der zweiten Himmelsgravur-Ansicht. Ein Wisch vom
 
 ## Erster Texttest zu Hermes und Obsidian
 
-Die StopWatch verbindet sich per SDK-WebSocket mit `ws://192.168.0.114:8765/gadget` und ist im Hermes-Gateway gepaart. Der gelb-orange Knopf (GPIO2) oder der USB-Konsolenbefehl `vault-test` sendet denselben festen Text mit einer stabilen Geräte-Test-ID.
+Die StopWatch verbindet sich per SDK-WebSocket mit `ws://192.168.0.114:8765/gadget` und ist im Hermes-Gateway gepaart. Der USB-Konsolenbefehl `vault-test` sendet den festen Text mit einer stabilen Geräte-Test-ID.
 
 Auf dem Pi lädt Hermes das Projekt-Plugin aus `~/.hermes/plugins/gadget`. Der laufende User-Dienst `hermes-stopwatch-gateway.service` ist transient und bindet den Gadget-Port an die lokale Pi-Adresse. `GADGET_TEST_VAULT` aktiviert den Test und `GADGET_TEST_DEVICE` beschränkt ihn auf die gepaarte StopWatch. Der Adapter schreibt im Testpfad deterministisch in den vorhandenen Log-Abschnitt der Berliner Daily Note und bestätigt erst nach erfolgreichem Speichern. Die HTML-ID in der Zeile verhindert Dubletten. Der Dienst muss nach einem Pi-Neustart erneut gestartet werden.
+
+## Push-to-Talk und Whisper für Deutsch und Englisch
+
+Die gelb-orange Taste (GPIO2) startet im Himmelsgravur-Build die vorhandene SDK-Aufnahme. Loslassen sendet das Aufnahmeende. Die Sprechblase zeigt Aufnahme, Transkript und die finale Hermes-Antwort. Der separate USB-Vault-Test bleibt verfügbar.
+
+Auf dem Pi liegt [pi-transcribe.py](../display/alter-ego/pi-transcribe.py) in `~/.local/share/stopwatch-stt` neben der separaten Python-3.13-Umgebung `venv` und dem mehrsprachigen Modell unter `models/base`. Installiert wurden `faster-whisper==1.2.1` und `av==16.1.0`. PyAV 19 entfernt ein Argument, das diese faster-whisper-Version beim Öffnen von Audio verwendet. Zur Ersteinrichtung lädt `faster_whisper.utils.download_model("base", output_dir=...)` das Modell. Die Transkription verwendet die lokale Modellkopie, CPU INT8 und wählt anhand der Modellwahrscheinlichkeiten pro Aufnahme zwischen Deutsch und Englisch.
+
+Hermes verwendet den konfigurierten Command-Provider `stopwatch_whisper` mit `pi-transcribe.py {input_path} {output_path}`, `stt.echo_transcripts: true` und aktivierter automatischer Sprachausgabe für Gadget-Antworten. Der bestehende Gateway-Start für die StopWatch behält seine Pairing- und Vault-Einstellungen.
+
+## Gesprochene Hermes-Antworten
+
+Der Pi verwendet den Hermes-Command-Provider `stopwatch_piper`. [pi-speak.py](../display/alter-ego/pi-speak.py) liegt in `~/.local/share/stopwatch-tts` neben der separaten Python-Umgebung `venv` mit `piper-tts==1.8.0` und `langid==1.1.6`. Die aktuellen Modelle `de_DE-jarvis-high` und `en_GB-jarvis-high` liegen in `voices`. Die deutsche Variante stammt aus [ufozone/piper-de_DE-jarvis-high](https://huggingface.co/ufozone/piper-de_DE-jarvis-high/tree/61f75d4), die britisch-englische aus [jgkawell/jarvis](https://huggingface.co/jgkawell/jarvis/tree/78090a6/en/en_GB/jarvis/high). Je Modell liegen ONNX-Datei und passende Piper-Konfiguration im selben Ordner. Der Anbieter liest `{input_path}`, erkennt Deutsch oder Englisch anhand des Antworttexts und schreibt WAV nach `{output_path}`. Sehr kurze oder gemischte Antworten können mehrdeutig sein. Hermes verwendet `output_format: wav`, `voice_compatible: true` und `platforms.gadget.extra.speak_replies: true`.
+
+Der Gadget-Adapter resampelt das Audio für den SDK-Lautsprecherpfad. Die StopWatch verwendet ihre vorhandene Firmware.
+
+Der Lautstärkeregler auf der zweiten Watchface-Seite nutzt die SDK-Lautstärkeeinstellung. Ziehen ändert den Pegel direkt. Loslassen speichert den Wert in NVS. Die StopWatch bestätigte 30 % über die USB-Konsole.
+
+Meilenstein 2 dokumentiert die vollständige Sprachkette im Heim-WLAN auf Deutsch und Englisch. Die offenen Arbeiten für Autostart und Fernzugriff stehen im [Entwicklungslog](entwicklungslog.md#23-november-2026--meilenstein-2).

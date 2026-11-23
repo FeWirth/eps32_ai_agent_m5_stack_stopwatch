@@ -82,3 +82,7 @@ Für den Hermes-Zugriff über Mobilfunk ist zusätzlich ein erreichbarer Hermes-
 ### Verbindung manuell wählen
 
 Auf dem Avatar nach links wischen. In der Ansicht **Verbindung** lässt sich das gespeicherte Heim-WLAN oder der iPhone-Hotspot auswählen. Der grüne Schalter rechts zeigt das tatsächlich verbundene Netz, auch in der Automatik. Ein goldener Rahmen kennzeichnet eine manuelle Auswahl. Erneutes Antippen desselben Schalters oder ein Neustart schaltet zurück auf Automatik. Ein Wisch nach rechts oder ein Tipp auf **Avatar** führt zurück. Beim Verbindungswechsel und in der Netzwerkansicht der Sprechblase unterscheidet der Avatar Heim-WLAN und iPhone-Hotspot.
+
+### Lautstärke einstellen
+
+Auf dem Avatar nach links zu **Einstellungen** wischen. Unter den beiden Netzschaltern liegt der Lautstärkeregler. Ziehen oder Tippen ändert den Pegel von 0 bis 100 Prozent direkt. Beim Loslassen speichert die Uhr den Wert über dieselbe Lautstärkeeinstellung wie die USB-Konsole.
