@@ -83,3 +83,34 @@ Der Gadget-Adapter resampelt das Audio für den SDK-Lautsprecherpfad. Die StopWa
 Der Lautstärkeregler auf der zweiten Watchface-Seite nutzt die SDK-Lautstärkeeinstellung. Ziehen ändert den Pegel direkt. Loslassen speichert den Wert in NVS. Die StopWatch bestätigte 30 % über die USB-Konsole.
 
 Meilenstein 2 dokumentiert die vollständige Sprachkette im Heim-WLAN auf Deutsch und Englisch. Die offenen Arbeiten für Autostart und Fernzugriff stehen im [Entwicklungslog](entwicklungslog.md#23-november-2026--meilenstein-2).
+
+
+## Pomodoro und Zifferblatt-Karussell
+
+Der UI-Prototyp vom 24. November ordnet die native Ansicht als zyklische Folge aus Himmelsgravur, Pomodoro und Einstellungen an. Der Avatar verteilt Touch-Gesten. Der Lautstärkeregler übernimmt seine begonnenen Ziehgesten und die Akkuansicht übernimmt die Gesten an ihrem Griff. Die Mac-Vorschau exportiert Seite 2 mit Beispieldaten über `build-preview.sh`. Die Schalter `--pomodoro` und `--pomodoro-running` nach dem PNG-Ausgabepfad erlauben den Einzelexport.
+
+`display/alter-ego/pomodoro_page.hpp` zeichnet schwarze Flächen, gleich breite Bitmap-Ziffern und eine kontinuierliche Zeitlinie am Displayrand. Der Farbverlauf ist fest an den Winkel gebunden. Die Linie bleibt auf einem festen Radius und hat geglättete Kanten. Die Referenz für die Platzierung ist [Nuv1](https://nuv1.com). Der lokale Demo-Countdown aktualisiert die sichtbare Seite an Sekundengrenzen. Die SDK-Schleife nutzt `Avatar::refresh_delay`; die vorhandene Abschaltung des AMOLED bleibt aktiv. Projekt und Aufgabe sind Renderdaten. Ein späterer Hermes-Anschluss kann sie übergeben, der Prototyp hat noch keine Gateway-Anbindung und keine persistente Timer-Sitzung. Die macOS-Vorschau und der ESP32-S3-Build wurden lokal geprüft. Der Build mit der Zeitlinie am Displayrand wurde am 24. November 2026 per USB aufgespielt. Esptool bestätigte alle Prüfsummen und löste einen Hard-Reset aus. Sichttest am Gerät und Verbrauchsmessung stehen aus.
+
+### Pomodoro per Sprache
+
+Mit der Sprechtaste zum Beispiel „Starte 25 Minuten Pomodoro für Avatar Watch. Ich teste die Firmware.“ sagen. Hermes fragt bei fehlender Dauer oder unklarem Projekt nach. Ohne Tätigkeitsangabe zeigt die Uhr „Fokusarbeit“. Der volle genannte Text steht in der Work Session.
+
+Das Gateway-Tool `gadget_pomodoro` löst Projektname oder Alias im Vault auf und ruft `pomodoro.start` auf der gepaarten StopWatch auf. Nach Gerätebestätigung erstellt es die Work Session und verlinkt sie unter `## Log` zur Berliner Startzeit. Die Wiederholung desselben Gesprächszugs erzeugt keinen zweiten Eintrag. 25 und 50 Minuten sind unterstützt.
+
+Der Hermes-Gateway-Prozess benötigt `GADGET_POMODORO_VAULT` und `GADGET_POMODORO_DEVICE` für den Vault und die zugelassene Geräte-ID. Zum Deploy die geänderten Plugin-Dateien `__init__.py`, `tools.py` und `pomodoro.py` in das vorhandene Gadget-Plugin übernehmen und den Gateway-Dienst neu starten. Das Plugin verwendet die YAML-Bibliothek der Hermes-Python-Umgebung (ruamel.yaml oder PyYAML).
+
+### Timeralarm quittieren
+
+Das Avatar-Zifferblatt zeigt bei einem SDK-Timeralarm „Timer fertig“ mit einer Stopp-Schaltfläche und weckt das Display. Ein Tipp auf das Display oder ein Druck auf die Sprechtaste quittiert den Alarm. Der Tipp wird bis zum Loslassen abgefangen, damit er keine Aktion auf dem darunterliegenden Zifferblatt auslöst.
+
+### Fokusende und Regenerationspause
+
+Am Fokusende wechselt die StopWatch zum Pomodoro-Zifferblatt, spielt einmal einen kurzen Dreiklang und bietet 5 Minuten, 10 Minuten und „Ohne Pause“ an. Der Pausencountdown läuft lokal. Die bestätigte Watch meldet die Dauer mit `pomodoro.break` an Hermes. Hermes erhält einen Gesprächsauftrag für einen kurzen, konkreten Vorschlag zur aktiven Regeneration und entscheidet im aktuellen Gespräch, welche Methode passt. Die Antwort erscheint auf der Watch. Ohne Verbindung läuft der Countdown lokal weiter. Die Pause erzeugt keinen weiteren Vault-Eintrag. Läuft der Pausencountdown regulär ab, sendet die Watch einmal `pomodoro.break.done`. Hermes erzeugt einen kurzen motivierenden Satz für die nächste Arbeitsphase, bei passendem Gesprächskontext mit Bezug zum bisherigen Arbeitstag. Die Watch spielt die generierte Antwort bei aktivierter Sprachausgabe ab. Manuelles Beenden löst diese Ansage nicht aus.
+
+Die Mac-Vorschau exportiert `pomodoro-finished-preview.png` und `pomodoro-break-preview.png`. Der aktive Pi-Dienst heißt seit der Umstellung `hermes-gateway.service`.
+
+## Lange Nachrichten auf dem Avatar-Zifferblatt
+
+Die Sprechblase behält den gesamten empfangenen Text einschließlich Absatzumbrüchen. Für längere Nachrichten wächst sie nach oben bis zu neun sichtbaren Zeilen über den Avatar. Ein vertikaler Zug innerhalb einer scrollbaren Sprechblase verschiebt den Text pixelweise und behält die Geste bis zum Loslassen. Horizontale Wischer bedienen das Karussell. Die Vorschau exportiert Anfang und Ende über `build-preview.sh`. Als Referenz für direkte Ziehgesten diente die Drawer-Demo aus der UI-Sammlung. [Vaul](https://vaul.emilkowal.ski/)
+
+Die Firmware mit der scrollbaren Sprechblase wurde am 25. November 2026 auf die StopWatch aufgespielt. Esptool bestätigte die Prüfsummen aller vier Flash-Images und löste den Neustart aus. Felix bestätigte die Funktion anschließend auf der StopWatch.

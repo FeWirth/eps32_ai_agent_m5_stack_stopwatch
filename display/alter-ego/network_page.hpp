@@ -30,7 +30,7 @@ class NetworkPage {
     volume_change_.reset();
     return change;
   }
-  bool visible() const { return visible_; }
+  bool dragging_volume() const { return dragging_volume_; }
   void set_state(NetworkState state) { state_ = state; }
 
   void touch(bool down, int x, int y) {
@@ -39,10 +39,8 @@ class NetworkPage {
         start_x_ = x;
         start_y_ = y;
         moved_ = false;
-        dragging_volume_ = visible_ && x >= 86 && x < 380 && y >= 294 && y < 347;
+        dragging_volume_ = x >= 86 && x < 380 && y >= 294 && y < 347;
       }
-      last_x_ = x;
-      last_y_ = y;
       if (dragging_volume_) {
         volume_ = (std::clamp(x, kTrackStart, kTrackEnd) - kTrackStart) * 100 /
                   (kTrackEnd - kTrackStart);
@@ -52,16 +50,10 @@ class NetworkPage {
     } else if (dragging_volume_) {
       dragging_volume_ = false;
       volume_change_ = VolumeChange{volume_, true};
-    } else if (held_) {
-      const int dx = last_x_ - start_x_, dy = last_y_ - start_y_;
-      if (std::abs(dx) >= 72 && std::abs(dx) > 2 * std::abs(dy)) {
-        visible_ = dx < 0;
-      } else if (visible_ && !moved_ && start_x_ >= 82 && start_x_ < 384) {
-        if (start_y_ >= 352 && start_y_ < 388) visible_ = false;
-        for (int i = 0; i < 2; ++i) {
-          const int top = kNetworkTop + kNetworkStep * i;
-          if (start_y_ >= top && start_y_ < top + kNetworkHeight && state_.saved[i]) selection_ = i;
-        }
+    } else if (held_ && !moved_ && start_x_ >= 82 && start_x_ < 384) {
+      for (int i = 0; i < 2; ++i) {
+        const int top = kNetworkTop + kNetworkStep * i;
+        if (start_y_ >= top && start_y_ < top + kNetworkHeight && state_.saved[i]) selection_ = i;
       }
     }
     held_ = down;
@@ -107,14 +99,7 @@ class NetworkPage {
     if (knob > kTrackStart)
       c.fill_rect(kTrackStart, 316, knob - kTrackStart, 6, gold);
     c.fill_round_rect(knob - 9, 310, 19, 18, 8, ink);
-    center(c, 364, "<  Avatar", 2, gold);
-  }
-
-  void draw_indicator(hg::Canvas& c) const {
-    constexpr auto gold = hg::rgb565(216, 159, 77);
-    constexpr auto muted = hg::rgb565(81, 73, 69);
-    c.fill_round_rect(220, 397, 8, 8, 4, visible_ ? muted : gold);
-    c.fill_round_rect(238, 397, 8, 8, 4, visible_ ? gold : muted);
+    center(c, 364, "<  Pomodoro", 2, gold);
   }
 
  private:
@@ -133,8 +118,8 @@ class NetworkPage {
   int volume_ = 70;
   bool dragging_volume_ = false;
   std::optional<int> selection_;
-  int start_x_ = 0, start_y_ = 0, last_x_ = 0, last_y_ = 0;
-  bool visible_ = false, held_ = false, moved_ = false;
+  int start_x_ = 0, start_y_ = 0;
+  bool held_ = false, moved_ = false;
 };
 
 }  // namespace alter_ego

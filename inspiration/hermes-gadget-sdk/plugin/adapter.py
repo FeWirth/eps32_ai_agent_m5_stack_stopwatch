@@ -41,7 +41,7 @@ import ssl
 import threading
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Dict, List, Optional, Tuple
 
 from agent.i18n import get_language, t
@@ -689,6 +689,30 @@ class GadgetAdapter(BasePlatformAdapter, HubDelegate):
 
     async def on_event(self, session: DeviceSession, name: str, data: Any, notify: bool) -> None:
         logger.info("[%s] event from %s: %s %s", self.name, session.device_id, name, data)
+        if name in ("pomodoro.break", "pomodoro.break.done"):
+            if session.device_id != os.getenv("GADGET_POMODORO_DEVICE") or not self._still_trusted(session):
+                return
+            if not isinstance(data, dict):
+                return
+            minutes, receipt = data.get("minutes"), data.get("id")
+            if type(minutes) is not int or minutes not in (5, 10):
+                return
+            ended = name == "pomodoro.break.done"
+            prompt_id = r"pomodoro-break-end-[0-9]{1,10}" if ended else r"pomodoro-break-[0-9]{1,10}"
+            if not isinstance(receipt, str) or not re.fullmatch(prompt_id, receipt):
+                return
+            if ended:
+                task = (f"Meine {minutes}-minütige Pomodoro-Pause ist abgelaufen. Sag mir auf Deutsch "
+                        "einen kurzen, natürlich gesprochenen, motivierenden Satz für die nächste Arbeitsphase. "
+                        "Knüpfe an meinen bisherigen Arbeitstag an, wenn du passenden Kontext hast. "
+                        "Sonst formuliere den Satz allgemein.")
+            else:
+                task = (f"Schlage mir für meine {minutes}-minütige Pause eine kurze, konkrete "
+                        "aktive Regenerationsmethode vor. Antworte auf Deutsch in höchstens zwei "
+                        "kurzen Sätzen für die Uhr.")
+            await self._forward(session, self._event(
+                session, receipt, task, message_type=MessageType.TEXT, allow_gateway_control=False))
+            return
         if not notify:
             return
         payload = json.dumps(data, separators=(",", ":"))[:500] if data is not None else ""
@@ -743,6 +767,14 @@ class GadgetAdapter(BasePlatformAdapter, HubDelegate):
 
     # -- outbound text ----------------------------------------------------------------
 
+    def _reply_turn(self, session: DeviceSession, reply_to: Optional[str] = None) -> Optional[str]:
+        turn = self._turns.get(session.device_id)
+        for candidate in (reply_to, turn):
+            receipt = (candidate or "").rsplit(":", 1)[-1]
+            if re.fullmatch(r"pomodoro-break-[0-9]{1,10}", receipt):
+                return receipt
+        return turn
+
     async def send(self, chat_id: str, content: str, reply_to: Optional[str] = None,
                    metadata: Optional[Dict[str, Any]] = None) -> SendResult:
         session = self._session(chat_id)
@@ -759,7 +791,7 @@ class GadgetAdapter(BasePlatformAdapter, HubDelegate):
         text = textfmt.for_device(content, session.charset)
         if text:
             interim = bool((metadata or {}).get("_interim_send"))
-            await session.send_reply(text, turn=self._turns.get(session.device_id), interim=interim)
+            await session.send_reply(text, turn=self._reply_turn(session, reply_to), interim=interim)
         return SendResult(success=True, message_id=uuid.uuid4().hex[:12])
 
     def supports_draft_streaming(self, chat_type=None, metadata=None, chat_id=None) -> bool:
@@ -784,7 +816,7 @@ class GadgetAdapter(BasePlatformAdapter, HubDelegate):
             if text:
                 await session.send_notice(text, ttl_s=15)
             return SendResult(success=True, message_id=message_id)
-        turn = self._turns.get(session.device_id)
+        turn = self._reply_turn(session)
         if finalize:
             await session.send_reply(text, turn=turn)
         else:
@@ -932,6 +964,15 @@ class GadgetAdapter(BasePlatformAdapter, HubDelegate):
         return {"name": session.name if session else chat_id, "type": "dm", "chat_id": chat_id}
 
     # -- outbound audio ---------------------------------------------------------------
+
+    def _wants_auto_tts(self, event: MessageEvent, session_key: str, interrupt_event: asyncio.Event,
+                        text_content: str, media_files: list) -> bool:
+        receipt = (event.message_id or "").rsplit(":", 1)[-1]
+        if re.fullmatch(r"pomodoro-break-(?:end-)?[0-9]{1,10}", receipt):
+            # No audio input is uploaded for button/timer events. Enable the same
+            # reply playback path as voice input, including its stream deduplication.
+            event = replace(event, message_type=MessageType.VOICE)
+        return super()._wants_auto_tts(event, session_key, interrupt_event, text_content, media_files)
 
     def _should_auto_tts_for_chat(self, chat_id: str) -> bool:
         # Speaking devices answer voice with voice by default; an explicit

@@ -15,6 +15,14 @@ open display/alter-ego/build/Alter-Ego.app
 
 Beim Start steht „Hi, Felix!“ in der Sprechblase. Kurze Klicks lösen einen Lichtimpuls aus und wechseln zwischen Text, lokaler Mac-Uhrzeit und simuliertem WLAN-Status. Beim Klicken und Ziehen folgt das Gesicht dem Zeiger. Nach dem Loslassen kehrt es in die Ruhebewegung zurück. Die App zeigt denselben C++-Renderer in 466 × 466 Pixeln und mit derselben RGB565-Byte-Reihenfolge wie der CO5300-Treiber.
 
+## Pomodoro und Zifferblatt-Karussell
+
+Nach links wischen, um von Himmelsgravur zu Pomodoro, zu den Einstellungen und wieder zu Himmelsgravur zu wechseln. Nach rechts läuft die Reihenfolge rückwärts. Die drei Markierungen am unteren Rand zeigen die aktuelle Seite. In der Mac-Vorschau bei gedrückter Maustaste horizontal ziehen. Der Build exportiert `build/pomodoro-preview.png` und `build/pomodoro-running-preview.png`.
+
+Auf Seite 2 stehen Projekt und Aufgabe unter der Restzeit. 25 und 50 Minuten sind direkt wählbar. Der lokale Demo-Countdown lässt sich starten, pausieren und fortsetzen. Die Wahl der anderen Dauer setzt die Anzeige auf deren volle Laufzeit zurück. Die Mac-Vorschau zeigt „StopWatch“ und „UI-Konzept prüfen“ als Beispieldaten. Der Firmware-Build zeigt den leeren Zustand, bis Hermes Projekt und Aufgabe liefert.
+
+Die Zeitlinie am runden Displayrand füllt sich ab zwölf Uhr im Uhrzeigersinn und wechselt von Gold zu Orange. Die Linie behält ihren Radius und ihre Stärke. Bei sichtbarem Countdown aktualisiert sich die Anzeige an der nächsten Sekundengrenze. Das AMOLED schaltet weiterhin nach 10 Sekunden ohne Eingabe ab. Beim Aufwecken berechnet die UI die Restzeit aus der verstrichenen Zeit.
+
 ## ESP32-S3
 
 In einer eingerichteten ESP-IDF-Shell im Projektstamm:
@@ -31,7 +39,7 @@ Build-Ausgaben, der Komponenten-Cache und gegebenenfalls lokal installierte Pyth
 
 Kurze Tipps wechseln zwischen Textausgabe, Uhrzeit und WLAN-Status. Beim Start erscheint „Hi, Felix!“, gefolgt vom WLAN-Status. Sobald die Uhr eine IP-Adresse hat, erscheint kurz „WLAN: Verbunden“ und anschließend wieder der Begrüßungstext. Ein Tipp während der Startfolge wechselt direkt in den normalen Tipp-Loop. Mit WLAN synchronisiert die StopWatch die Zeit per SNTP über `pool.ntp.org`. Die Firmware rechnet auf Berliner Ortszeit mit Sommerzeit um und schreibt sie in die RX8130CE-Echtzeituhr zurück. Beim Start ohne Netz dient die Hardware-Uhr als Zeitquelle. Falls sie ihre Zeit verloren hat, erscheint bis zum nächsten Abgleich „Uhr nicht gestellt“.
 
-Für weitere Funktionen setzt `avatar.speech().show_message(text)` den Inhalt. Die Sprechblase bricht Text auf bis zu zwei Zeilen um und kürzt Überlänge mit Auslassungspunkten. Die Plattform liefert die Zeitquelle separat über `SpeechBubble::update`.
+Für weitere Funktionen setzt `avatar.speech().show_message(text)` den Inhalt. Die Sprechblase bricht Nachrichten auf 24 Zeichen pro Zeile um. Bei längeren Antworten wächst sie nach oben über den Avatar und zeigt bis zu neun Zeilen gleichzeitig. Bei Überlänge innerhalb der Sprechblase vertikal ziehen. Der Scrollbalken zeigt die Leseposition. Die Mac-Vorschau exportiert Anfang und Ende einer langen Nachricht als `build/long-message.png` und `build/long-message-end.png`. Die Plattform liefert die Zeitquelle separat über `SpeechBubble::update`.
 
 ### Ortszeit über USB einstellen
 
@@ -81,8 +89,8 @@ Für den Hermes-Zugriff über Mobilfunk ist zusätzlich ein erreichbarer Hermes-
 
 ### Verbindung manuell wählen
 
-Auf dem Avatar nach links wischen. In der Ansicht **Verbindung** lässt sich das gespeicherte Heim-WLAN oder der iPhone-Hotspot auswählen. Der grüne Schalter rechts zeigt das tatsächlich verbundene Netz, auch in der Automatik. Ein goldener Rahmen kennzeichnet eine manuelle Auswahl. Erneutes Antippen desselben Schalters oder ein Neustart schaltet zurück auf Automatik. Ein Wisch nach rechts oder ein Tipp auf **Avatar** führt zurück. Beim Verbindungswechsel und in der Netzwerkansicht der Sprechblase unterscheidet der Avatar Heim-WLAN und iPhone-Hotspot.
+Im Karussell-Prototyp vom Avatar zweimal nach links oder einmal nach rechts zu **Einstellungen** wischen. In der Ansicht lässt sich das gespeicherte Heim-WLAN oder der iPhone-Hotspot auswählen. Der grüne Schalter rechts zeigt das tatsächlich verbundene Netz, auch in der Automatik. Ein goldener Rahmen kennzeichnet eine manuelle Auswahl. Erneutes Antippen desselben Schalters oder ein Neustart schaltet zurück auf Automatik. Ein Wisch nach rechts oder ein Tipp auf **Pomodoro** führt zu Seite 2. Beim Verbindungswechsel und in der Netzwerkansicht der Sprechblase unterscheidet der Avatar Heim-WLAN und iPhone-Hotspot.
 
 ### Lautstärke einstellen
 
-Auf dem Avatar nach links zu **Einstellungen** wischen. Unter den beiden Netzschaltern liegt der Lautstärkeregler. Ziehen oder Tippen ändert den Pegel von 0 bis 100 Prozent direkt. Beim Loslassen speichert die Uhr den Wert über dieselbe Lautstärkeeinstellung wie die USB-Konsole.
+Die Seite **Einstellungen** öffnen. Unter den beiden Netzschaltern liegt der Lautstärkeregler. Ziehen oder Tippen ändert den Pegel von 0 bis 100 Prozent direkt. Beim Loslassen speichert die Uhr den Wert über dieselbe Lautstärkeeinstellung wie die USB-Konsole.

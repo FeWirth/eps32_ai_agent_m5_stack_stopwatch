@@ -8,6 +8,7 @@
 #include "speech_bubble.hpp"
 #include "battery_drawer.hpp"
 #include "network_page.hpp"
+#include "pomodoro_page.hpp"
 
 #define HG_ALTER_EGO_SPEECH_BUBBLE 1
 
@@ -21,22 +22,65 @@ struct Point {
 
 class Avatar {
  public:
+  enum class Face { Avatar, Pomodoro, Settings, Count };
+
+  Face face() const { return face_; }
+  uint32_t refresh_delay(uint32_t now, bool animate) const {
+    if (face_ == Face::Pomodoro) return pomodoro_.refresh_delay(now);
+    return face_ == Face::Avatar && (animate || spoons_moving(now)) ? 50 : 500;
+  }
+
+  void start_pomodoro(int minutes, uint32_t now, std::string_view project, std::string_view task) {
+    pomodoro_.start(minutes, now, project, task);
+    face_ = Face::Pomodoro;
+  }
+
+  PomodoroPage& pomodoro_page() { return pomodoro_; }
+  bool update_pomodoro(uint32_t now) {
+    if (!pomodoro_.update(now)) return false;
+    if (pomodoro_.completion_pending()) face_ = Face::Pomodoro;
+    return true;
+  }
+
   NetworkPage& network_page() { return network_; }
   SpeechBubble& speech() { return speech_; }
   void set_power(const std::optional<hg::PowerStatus>& power) { battery_.set_power(power); }
 
   void touch(bool down, int x, int y, uint32_t now) {
-    const bool on_page = network_.visible();
-    if (!on_page && battery_.touch(down, x, y, now)) return;
-    network_.touch(down, x, y);
-    if (on_page) return;
-    speech_.touch(down, x, y, now);
-    if (down && !held_) awakened_ = now;
-    held_ = down;
+    if (face_ == Face::Avatar && battery_.touch(down, x, y, now)) return;
     if (down) {
-      target_yaw_ = std::clamp((x - size / 2) / 650.0f, -.27f, .27f);
-      target_pitch_ = std::clamp((y - size / 2) / 870.0f, -.18f, .18f);
+      if (!held_) {
+        start_x_ = x;
+        start_y_ = y;
+        moved_ = false;
+      }
+      last_x_ = x;
+      last_y_ = y;
+      moved_ |= std::abs(x - start_x_) > 14 || std::abs(y - start_y_) > 14;
     }
+
+    const bool volume_gesture = face_ == Face::Settings && network_.dragging_volume();
+    if (face_ == Face::Settings) network_.touch(down, x, y);
+    const bool scroll_gesture = face_ == Face::Avatar && speech_.touch(down, x, y, now);
+    if (face_ == Face::Avatar && !scroll_gesture) {
+      if (down && !held_) awakened_ = now;
+      if (down) {
+        target_yaw_ = std::clamp((x - size / 2) / 650.0f, -.27f, .27f);
+        target_pitch_ = std::clamp((y - size / 2) / 870.0f, -.18f, .18f);
+      }
+    }
+    if (!down && held_ && !volume_gesture && !scroll_gesture) {
+      const int dx = last_x_ - start_x_, dy = last_y_ - start_y_;
+      if (std::abs(dx) >= 72 && std::abs(dx) > 2 * std::abs(dy)) {
+        const int count = static_cast<int>(Face::Count);
+        face_ = static_cast<Face>((static_cast<int>(face_) + (dx < 0 ? 1 : count - 1)) % count);
+      } else if (!moved_) {
+        if (face_ == Face::Pomodoro) pomodoro_.tap(start_x_, start_y_, now);
+        if (face_ == Face::Settings && start_x_ >= 150 && start_x_ < 316 &&
+            start_y_ >= 352 && start_y_ < 388) face_ = Face::Pomodoro;
+      }
+    }
+    held_ = down;
   }
 
   void set_spoons_raised(bool raised, uint32_t now, bool screen_off = false) {
@@ -49,7 +93,8 @@ class Avatar {
     return spoon_from_ != spoon_target_ && now - spoon_started_ < kSpoonTravelMs;
   }
 
-  bool draw(hg::Display& display, uint32_t now, bool animate = true) {
+  bool draw(hg::Display& display, uint32_t now, bool animate = true,
+            std::string_view project_name = "Kein Projekt", std::string_view task = "Keine Aufgabe", bool timer_alarm = false) {
     const auto info = display.info();
     if (info.width != size || info.height != size || !info.round ||
         display.framebuffer_rows() || !display.framebuffer()) return false;
@@ -58,9 +103,21 @@ class Avatar {
     std::fill_n(pixels_, size * size, uint16_t{0});
 
     hg::Canvas canvas(pixels_, size, size, swapped_);
-    if (network_.visible()) {
-      network_.draw(canvas);
-      network_.draw_indicator(canvas);
+    if (timer_alarm) {
+      constexpr auto ink = hg::rgb565(250, 236, 215);
+      constexpr auto accent = hg::rgb565(240, 173, 97);
+      constexpr std::string_view title = "Timer fertig";
+      constexpr std::string_view stop = "Stopp";
+      canvas.text((size - hg::Canvas::text_width(title, 4)) / 2, 165, title, 4, ink);
+      canvas.fill_round_rect(138, 227, 190, 60, 17, accent);
+      canvas.text((size - hg::Canvas::text_width(stop, 3)) / 2, 247, stop, 3, 0);
+      display.flush(0, size);
+      return true;
+    }
+    if (face_ != Face::Avatar) {
+      if (face_ == Face::Pomodoro) pomodoro_.draw(canvas, now, project_name, task);
+      else network_.draw(canvas);
+      draw_indicator(canvas);
       display.flush(0, size);
       return true;
     }
@@ -131,13 +188,22 @@ class Avatar {
       if (lowered < 1.f) spoon(sign, t, pulse, lowered);
     }
     speech_.draw(canvas);
-    network_.draw_indicator(canvas);
+    draw_indicator(canvas);
     battery_.draw(canvas, pixels_, now);
     display.flush(0, size);
     return true;
   }
 
  private:
+  void draw_indicator(hg::Canvas& c) const {
+    for (int i = 0; i < static_cast<int>(Face::Count); ++i) {
+      const bool active = i == static_cast<int>(face_);
+      const int width = active ? 18 : 6;
+      c.fill_round_rect(233 + 24 * (i - 1) - width / 2, 427, width, 6, 3,
+                        active ? hg::rgb565(216, 159, 77) : hg::rgb565(81, 73, 69));
+    }
+  }
+
   template <size_t N>
   static bool inside(const Point (&poly)[N], float x, float y) {
     bool result = false;
@@ -232,6 +298,10 @@ class Avatar {
   SpeechBubble speech_;
   BatteryDrawer battery_;
   NetworkPage network_;
+  PomodoroPage pomodoro_;
+  Face face_ = Face::Avatar;
+  int start_x_ = 0, start_y_ = 0, last_x_ = 0, last_y_ = 0;
+  bool moved_ = false;
   uint16_t* pixels_ = nullptr;
   uint32_t spoon_started_ = 0;
   float spoon_from_ = 0, spoon_target_ = 0;

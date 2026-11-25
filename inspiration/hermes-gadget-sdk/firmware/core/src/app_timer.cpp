@@ -172,6 +172,12 @@ void App::start_alarm() {
   update_model();
 }
 
+bool App::acknowledge_timer_alarm() {
+  if (model_.screen != Screen::Alarm) return false;
+  dismiss_alarm();
+  return true;
+}
+
 void App::dismiss_alarm() {
   // While it rings, the speaker plays only our beeps: start_alarm() stopped Hermes, and a Hermes
   // stream that starts later ends the ringing (h_audio_start). So stop the speaker only then,
@@ -186,6 +192,33 @@ void App::dismiss_alarm() {
 bool App::alarm_flash() const {
   // The first half of each cycle is green, in step with the double beep that starts it.
   return alarm_ringing_ && static_cast<int32_t>(next_beep_at_ - now()) > static_cast<int32_t>(kBeepCycleMs / 2);
+}
+
+bool App::play_focus_chime() {
+  if (!hal_.speaker) return true;
+  if (in_stream_ >= 0 || hal_.speaker->busy() || mode_ == Mode::Listening) return false;
+  const uint32_t rate = profile_.speaker_rate;
+  if (!hal_.speaker->begin(rate)) return false;
+
+  // D5, A5, D6. A soft attack and exponential decay give each note a short bell tail.
+  const size_t note_samples = rate * 180 / 1000;
+  const size_t gap = rate * 12 / 1000;
+  std::vector<int16_t> pcm(3 * note_samples + 2 * gap, 0);
+  size_t offset = 0;
+  for (const double hz : {587.33, 880.0, 1174.66}) {
+    for (size_t i = 0; i < note_samples; ++i) {
+      const double t = static_cast<double>(i) / rate;
+      const double phase = 2.0 * kPi * hz * t;
+      const double attack = std::min(1.0, t / 0.012);
+      const double release = std::min(1.0, static_cast<double>(note_samples - i - 1) / (rate * 0.035));
+      pcm[offset + i] = static_cast<int16_t>(4200.0 * attack * release * std::exp(-14.0 * t) *
+                                             (std::sin(phase) + 0.13 * std::sin(2.0 * phase)));
+    }
+    offset += note_samples + gap;
+  }
+  hal_.speaker->write(pcm.data(), pcm.size());
+  hal_.speaker->end();
+  return true;
 }
 
 void App::beep_pattern() {

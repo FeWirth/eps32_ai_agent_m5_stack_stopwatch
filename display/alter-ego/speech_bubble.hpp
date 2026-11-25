@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -34,14 +35,27 @@ class SpeechBubble {
     set_text(message_);
   }
 
-  void touch(bool down, int x, int y, uint32_t now) {
+  bool touch(bool down, int x, int y, uint32_t now) {
     if (down && !held_) {
       start_x_ = x;
       start_y_ = y;
       pressed_at_ = now;
       moved_ = false;
+      scrolling_ = false;
+      const auto box = layout();
+      scroll_candidate_ = max_scroll() > 0 && x >= box.left && x < box.left + box.width &&
+                          y >= box.top && y < box.top + box.height;
+      start_scroll_ = scroll_;
+
     }
-    if (down && (std::abs(x - start_x_) > 14 || std::abs(y - start_y_) > 14)) moved_ = true;
+    if (down && !moved_) {
+      const int dx = std::abs(x - start_x_), dy = std::abs(y - start_y_);
+      if (dx > 14 || dy > 14) {
+        moved_ = true;
+        scrolling_ = scroll_candidate_ && dy > dx;
+      }
+    }
+    if (down && scrolling_ && scroll_candidate_) scroll_ = std::clamp(start_scroll_ + start_y_ - y, 0, max_scroll());
     // The touchscreen may report zero coordinates on lift.
     if (!down && held_ && !moved_ && now - pressed_at_ <= 350) {
       if (startup_ != Startup::Done) view_ = View::Text;
@@ -53,6 +67,9 @@ class SpeechBubble {
       }
     }
     held_ = down;
+    const bool consumed = scrolling_;
+    if (!down) scrolling_ = false;
+    return consumed;
   }
 
   template <typename ReadClock>
@@ -92,32 +109,64 @@ class SpeechBubble {
     constexpr auto border = hg::rgb565(222, 161, 81);
     constexpr auto fill = hg::rgb565(19, 16, 27);
     constexpr auto ink = hg::rgb565(255, 231, 185);
-    constexpr int scale = 2;
-    constexpr int top = 318;
-    constexpr int center = 233;
-    const int height = 22 + static_cast<int>(lines_.size()) * hg::Canvas::line_height(scale);
-    int width = 132;
-    for (const auto& line : lines_) width = std::max(width, 24 + hg::Canvas::text_width(line, scale));
-    const int left = center - width / 2;
-
+    const auto [left, top, width, height] = layout();
     for (int row = 0; row < 17; ++row) {
       const int half = row / 2;
-      canvas.fill_rect(center - half, top - 16 + row, half * 2 + 1, 1, border);
+      canvas.fill_rect(kCenter - half, top - 16 + row, half * 2 + 1, 1, border);
     }
     canvas.fill_round_rect(left, top, width, height, 13, border);
     canvas.fill_round_rect(left + 2, top + 2, width - 4, height - 4, 11, fill);
     for (int row = 0; row < 15; ++row) {
       const int half = row / 2;
-      canvas.fill_rect(center - half, top - 12 + row, half * 2 + 1, 1, fill);
+      canvas.fill_rect(kCenter - half, top - 12 + row, half * 2 + 1, 1, fill);
     }
-    int y = top + 12;
-    for (const auto& line : lines_) {
-      canvas.text(center - hg::Canvas::text_width(line, scale) / 2, y, line, scale, ink);
-      y += hg::Canvas::line_height(scale);
+
+    const int text_top = top + kPadding;
+    const int viewport = std::min(static_cast<int>(lines_.size()), kVisibleRows) * kLineHeight;
+    canvas.set_clip_rows(text_top, text_top + viewport);
+    int y = text_top - scroll_ % kLineHeight;
+    for (size_t row = scroll_ / kLineHeight; row < lines_.size() && y < text_top + viewport;
+         ++row, y += kLineHeight) {
+      const auto& line = lines_[row];
+      const int x = lines_.size() > 2 ? left + kPadding :
+          kCenter - hg::Canvas::text_width(line, kScale) / 2;
+      canvas.text(x, y, line, kScale, ink);
+    }
+    canvas.reset_clip();
+
+    const int overflow = max_scroll();
+    if (overflow > 0) {
+      const int thumb = std::max(16, viewport * viewport / (viewport + overflow));
+      const int position = static_cast<int>(static_cast<int64_t>(viewport - thumb) * scroll_ / overflow);
+      const int x = left + width - 13;
+      canvas.fill_round_rect(x, text_top, 4, viewport, 2, hg::rgb565(73, 49, 34));
+      canvas.fill_round_rect(x, text_top + position, 4, thumb, 2, border);
     }
   }
 
  private:
+  static constexpr int kCenter = 233;
+  static constexpr int kScale = 2;
+  static constexpr int kLineHeight = hg::font::kCellHeight * kScale;
+  static constexpr int kVisibleRows = 9;
+  static constexpr int kPadding = 14;
+
+  struct Layout { int left, top, width, height; };
+
+  Layout layout() const {
+    const int rows = static_cast<int>(lines_.size());
+    const int height = 2 * kPadding + std::min(rows, kVisibleRows) * kLineHeight;
+    if (rows > 2) return {71, 399 - height, 324, height};
+    int width = 132;
+    for (const auto& line : lines_)
+      width = std::max(width, 2 * kPadding + hg::Canvas::text_width(line, kScale));
+    return {kCenter - width / 2, 318, width, height};
+  }
+
+  int max_scroll() const {
+    return std::max(0, static_cast<int>(lines_.size()) - kVisibleRows) * kLineHeight;
+  }
+
   enum class View { Text, Clock, Wifi };
   enum class Startup { Done, Greeting, Network, Connected };
 
@@ -136,19 +185,12 @@ class SpeechBubble {
   }
 
   void set_text(std::string_view message) {
-    const auto bounded = message.substr(0, hg::font::prefix(message, 64));
-    const bool clipped = bounded.size() < message.size();
-    if (bounded == rendered_text_ && clipped == clipped_) return;
-    rendered_text_ = bounded;
-    clipped_ = clipped;
-    lines_ = hg::wrap_text(rendered_text_, 19);
-    const bool overflow = lines_.size() > 2;
-    if (overflow) lines_.resize(2);
-    if ((overflow || clipped_) && !lines_.empty()) {
-      auto& last = lines_.back();
-      last.resize(hg::font::prefix(last, 16));
-      last += "...";
-    }
+    if (message == rendered_text_) return;
+    rendered_text_.assign(message);
+    lines_ = hg::wrap_text(rendered_text_, 24);
+    scroll_ = 0;
+    scroll_candidate_ = false;
+    start_scroll_ = 0;
   }
 
   std::string message_;
@@ -158,7 +200,10 @@ class SpeechBubble {
   uint32_t next_update_ = 0;
   int start_x_ = 0;
   int start_y_ = 0;
-  bool clipped_ = false;
+  int scroll_ = 0;
+  int start_scroll_ = 0;
+  bool scroll_candidate_ = false;
+  bool scrolling_ = false;
   bool held_ = false;
   bool moved_ = false;
   View view_ = View::Text;

@@ -4,13 +4,13 @@ Ziel ist ein kleiner Avatar auf der ESP32-S3-Uhr, über den man mit einem Hermes
 
 ## Projektstand
 
-**23. November 2026 · Meilenstein 2** — Sprachgespräche mit Hermes über die StopWatch sind im Heim-WLAN auf Deutsch und Englisch bestätigt. Die Uhr nimmt per Push-to-Talk auf und spielt Hermes-Antworten mit Jarvis High ab.
+**25. November 2026 · Meilenstein 4** — Das Avatar-Zifferblatt zeigt lange Hermes-Nachrichten in einer wachsenden, scrollbaren Sprechblase. Die Bedienung ist auf der StopWatch bestätigt. Das Karussell enthält außerdem Pomodoro und Einstellungen.
 
 | Bereich | Status | Nachweis oder offene Arbeit |
 | --- | --- | --- |
 | Himmelsgravur | Auf der StopWatch installiert | Aktualisierte Firmware per Prüfsumme verifiziert und die Uhr neu gestartet. Die Darstellung wurde in der Mac-Vorschau geprüft. [Renderer und Build](display/alter-ego/) |
 | Mary / Piepi | Auf der StopWatch erprobt | Mac-Vorschau gebaut, ESP32-S3-Firmware verifiziert und Funktion auf dem Gerät bestätigt. [Renderer und Build](display/alter_ego_mary/) |
-| Sprechblase für Himmelsgravur | Auf der StopWatch installiert | Tipp-Loop mit Berliner Ortszeit. Automatische Wiederherstellung einer ungültigen Hardware-Uhr über WLAN auf der StopWatch bestätigt. |
+| Sprechblase für Himmelsgravur | Auf der StopWatch installiert | Tipp-Loop und automatische Wiederherstellung der Hardware-Uhr am Gerät bestätigt. Die wachsende, scrollbare Sprechblase wurde per USB aufgespielt und per Prüfsumme verifiziert. Bedienung von Felix am Gerät bestätigt. |
 | Automatische WLAN-Verbindung | Auf der StopWatch installiert | Heimnetz über USB eingerichtet. Automatische Verbindung nach einem Neustart der StopWatch bestätigt. |
 | Akkuansicht für Himmelsgravur | Auf der StopWatch installiert | Herunterziehen und Schließen am Gerät bestätigt. |
 | Energiesparen | Auf der StopWatch installiert | Animation hält nach 5 s an, AMOLED schaltet nach 10 s ab. Aufwecken per Tipp und leiser Akkubetrieb bestätigt. 20,7 s tatsächlicher Light Sleep während einer rund 27 s langen Doze-Periode gemessen. |
@@ -18,7 +18,11 @@ Ziel ist ein kleiner Avatar auf der ESP32-S3-Uhr, über den man mit einem Hermes
 | iPhone-Hotspot als WLAN-Rückfall | Firmware auf der StopWatch installiert | Heim-WLAN und iPhone-Hotspot am Gerät bestätigt. Der automatische Wechsel bei Reichweitenverlust und Rückkehr steht als Gerätetest aus. |
 | Verbindungsansicht für Himmelsgravur | Auf der StopWatch installiert | Swipe nach links, zwei Netzschalter mit grünem Verbindungsstatus und Netztyp in der Sprechblase. Darstellung des aktiven und inaktiven Schalters auf der Uhr bestätigt. |
 | Hermes über lokales WLAN | Texttest auf der StopWatch bestätigt | Festen Testtext im Vault gespeichert, gleiche ID mehrfach bestätigt und genau eine Zeile bis zur Mac-Kopie synchronisiert. Push-to-Talk auf der StopWatch bestätigt. Das Uhrenmikrofon liefert ein Transkript und Hermes antwortet als Text. |
-| Lautstärkeregler | Auf der StopWatch installiert | Zweite Watchface-Seite, 0–100 %. Auf der Uhr auf 30 % gestellt und gespeicherten Wert per USB bestätigt. |
+| Pomodoro-Zifferblatt und Karussell | UI-Prototyp auf der StopWatch installiert | 25 und 50 Minuten mit einem umlaufenden Farbverlauf am Displayrand. Die Mac-Vorschau zeigt Projekt und Aufgabe mit Beispieldaten. Flash per Prüfsumme bestätigt. Der Sprachtest für den Hermes-Start steht aus. [Vorschau](display/alter-ego/README.md#pomodoro-und-zifferblatt-karussell) |
+| Pomodoro per Sprache | Firmware und Gateway-Plugin installiert | ESP32-Flash und Vault-Schreibpfad geprüft. Der Sprachtest am Gerät steht aus. [Ablauf](codex/README.md#pomodoro-per-sprache) |
+| Pomodoro-Abschluss und Pause | Firmware und Hermes-Adapter installiert | Kurzer Dreiklang, 5-/10-Minuten-Pause, Regenerationstipp und von Hermes gesprochener Wiedereinstieg am Pausenende. Countdown-Logik und Vorschau geprüft. [Ablauf](codex/README.md#fokusende-und-regenerationspause) |
+| Timeralarm quittieren | Firmware auf der StopWatch installiert | Bei einem SDK-Timeralarm zeigt das Zifferblatt „Timer fertig“ und „Stopp“. Ein Tipp oder die Sprechtaste quittiert den Alarm. Flash per Prüfsumme bestätigt. |
+| Lautstärkeregler | Auf der StopWatch installiert | 0–100 %. Auf der Uhr auf 30 % gestellt und gespeicherten Wert per USB bestätigt. Im Karussell-Prototyp liegen die Einstellungen auf Seite 3. |
 | Gesprochene Hermes-Antwort | Lautsprecher auf der StopWatch bestätigt | Vollständige Gespräche über Uhrenmikrofon und Lautsprecher auf Deutsch und Englisch bestätigt. |
 | Bluetooth LE als Rückfall | Offen | Automatischen Wechsel zu Bluetooth und zurück zu WLAN umsetzen und testen. |
 | Gateway-Autostart auf dem Pi | Offen | Dauerhaften Dienst einrichten und Wiederverbindung nach Pi-Neustart testen. |

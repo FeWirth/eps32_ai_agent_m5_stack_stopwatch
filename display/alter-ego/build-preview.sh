@@ -20,3 +20,9 @@ clang++ -std=c++17 -O2 -Wall -Wextra -Werror -fobjc-arc -framework AppKit \
 "$app/Contents/MacOS/Alter-Ego" "$PWD/build/preview.png"
 "$app/Contents/MacOS/Alter-Ego" "$PWD/build/battery-preview.png" --battery
 "$app/Contents/MacOS/Alter-Ego" "$PWD/build/network-preview.png" --network
+"$app/Contents/MacOS/Alter-Ego" "$PWD/build/pomodoro-preview.png" --pomodoro
+"$app/Contents/MacOS/Alter-Ego" "$PWD/build/pomodoro-running-preview.png" --pomodoro-running
+"$app/Contents/MacOS/Alter-Ego" "$PWD/build/pomodoro-finished-preview.png" --pomodoro-finished
+"$app/Contents/MacOS/Alter-Ego" "$PWD/build/pomodoro-break-preview.png" --pomodoro-break
+"$app/Contents/MacOS/Alter-Ego" "$PWD/build/long-message.png" --long-message
+"$app/Contents/MacOS/Alter-Ego" "$PWD/build/long-message-end.png" --long-message-end

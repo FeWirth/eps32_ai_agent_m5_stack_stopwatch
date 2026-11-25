@@ -498,6 +498,10 @@ extern "C" void app_main(void) {
   uint32_t next_avatar_frame = g_system.now_ms();
   alter_ego::Idle avatar_idle(next_avatar_frame);
   auto avatar_mode = alter_ego::Idle::Mode::Animated;
+  bool avatar_alarm_visible = false;
+  bool alarm_touch = false;
+  uint32_t break_sequence = 0;
+  std::string pending_break_reply;
   if (avatar_active) {
     hal.display = nullptr;
     avatar.emplace();
@@ -588,18 +592,58 @@ extern "C" void app_main(void) {
       if (button != hg::Button::Cancel) return false;
       const bool was_listening = app.listening();
       if (down) g_system.set_dozing(false);
+      const bool alarm = app.model().screen == hg::Screen::Alarm;
       app.on_button(hg::Button::Talk, down, true);
+      if (alarm) return true;
       if (down)
         show_voice_status(app.listening() ? "Hoere zu ..." : "Aufnahme nicht bereit");
       else if (was_listening)
         show_voice_status(app.in_turn() ? "Hermes denkt nach ..." : "Aufnahme nicht gesendet");
       return true;
     };
+    hg::Action pomodoro;
+    pomodoro.name = "pomodoro.start";
+    pomodoro.description = "Start the Pomodoro watch face. Use gadget_pomodoro to also record the session.";
+    auto properties = hg::json::Value::object();
+    properties.set("minutes", hg::json::Value::object().set("type", "integer"));
+    for (const auto* name : {"project", "activity", "receipt"})
+      properties.set(name, hg::json::Value::object().set("type", "string"));
+    pomodoro.params.set("type", "object").set("properties", properties);
+    pomodoro.handler = [&, last_receipt = std::string{}](const hg::json::Value& args,
+                                      hg::json::Value& result, std::string& error) mutable {
+      const auto minutes = args["minutes"].as_int();
+      const auto& project = args["project"].as_string();
+      const auto& activity = args["activity"].as_string();
+      const auto& receipt = args["receipt"].as_string();
+      if ((minutes != 25 && minutes != 50) || project.empty() || project.size() > 96 ||
+          activity.size() > 96 || receipt.empty() || receipt.size() > 64) {
+        error = "Invalid Pomodoro arguments";
+        return false;
+      }
+      if (last_receipt != receipt) {
+        const auto now = g_system.now_ms();
+        g_system.set_dozing(false);
+        avatar_idle.wake(now);
+        avatar->start_pomodoro(static_cast<int>(minutes), now, project, activity);
+        next_avatar_frame = now;
+        last_receipt = receipt;
+      }
+      result.set("minutes", minutes);
+      return true;
+    };
+    app.add_action(std::move(pomodoro));
     app.on_transcript = [show_voice_status](std::string_view text) {
       show_voice_status(text);
       ESP_LOGI(TAG, "voice transcript received (%u bytes)", static_cast<unsigned>(text.size()));
     };
     app.on_text_reply = [&, show_voice_status](std::string_view id, std::string_view message) {
+      if (id.substr(0, 15) == "pomodoro-break-") {
+        if (id == pending_break_reply && avatar->pomodoro_page().set_break_tip(message)) {
+          pending_break_reply.clear();
+          next_avatar_frame = g_system.now_ms();
+        }
+        return true;
+      }
       show_voice_status(message);
       if (id != vault_test_id || (message != "Vault gespeichert" && message != "Vault-Test fehlgeschlagen")) {
         ESP_LOGI(TAG, "Hermes reply received (%u bytes)", static_cast<unsigned>(message.size()));
@@ -628,6 +672,16 @@ extern "C" void app_main(void) {
         if (avatar && ev.type == hgp::EventType::Touch && ev.len == sizeof(hgp::TouchSample)) {
           const auto& sample = *reinterpret_cast<const hgp::TouchSample*>(ev.data);
           const auto now = g_system.now_ms();
+          if (sample.touching && app.acknowledge_timer_alarm()) {
+            alarm_touch = true;
+            avatar_idle.wake(now);
+          }
+          if (alarm_touch) {
+            alarm_touch = sample.touching;
+            next_avatar_frame = now;
+            hgp::events::release(ev);
+            continue;
+          }
           if (avatar_idle.touch(sample.touching, now)) avatar->touch(sample.touching, sample.x, sample.y, now);
           if (const auto selection = avatar->network_page().take_selection()) g_wifi.toggle_network(*selection);
           if (const auto volume = avatar->network_page().take_volume_change())
@@ -679,9 +733,41 @@ extern "C" void app_main(void) {
 #ifdef HG_ALTER_EGO_SPEECH_BUBBLE
     const uint32_t now = g_system.now_ms();
     if (!avatar) continue;
+    auto& pomodoro_page = avatar->pomodoro_page();
+    if (avatar->update_pomodoro(now)) {
+      next_avatar_frame = now;
+      if (pomodoro_page.completion_pending()) {
+        g_system.set_dozing(false);
+        avatar_idle.wake(now);
+      }
+    }
+    if (pomodoro_page.completion_pending() && !app.in_turn() &&
+        app.model().screen != hg::Screen::Alarm) {
+      g_system.set_dozing(false);
+      if (app.play_focus_chime()) pomodoro_page.clear_completion();
+    }
+    if (const int minutes = pomodoro_page.take_break_request(); minutes && !app.online()) {
+      pomodoro_page.set_break_tip("Hermes ist gerade offline.");
+      next_avatar_frame = now;
+    } else if (minutes) {
+      pending_break_reply = "pomodoro-break-" + std::to_string(++break_sequence);
+      auto details = hg::json::Value::object();
+      details.set("minutes", minutes).set("id", pending_break_reply);
+      app.emit_event("pomodoro.break", std::move(details), false);
+    }
+    if (const int minutes = pomodoro_page.take_break_completion(); minutes && app.online()) {
+      auto details = hg::json::Value::object();
+      details.set("minutes", minutes).set("id", "pomodoro-break-end-" + std::to_string(++break_sequence));
+      app.emit_event("pomodoro.break.done", std::move(details), false);
+    }
     const bool wifi_connected = !g_wifi.current().empty();
     avatar_clock->tick_network(wifi_connected);
-    if (app.listening()) avatar_idle.wake(now);
+    const bool timer_alarm = app.model().screen == hg::Screen::Alarm;
+    if (timer_alarm != avatar_alarm_visible) {
+      avatar_alarm_visible = timer_alarm;
+      next_avatar_frame = now;
+    }
+    if (app.listening() || timer_alarm) avatar_idle.wake(now);
     const auto mode = avatar_idle.mode(now);
     const bool dark = mode == alter_ego::Idle::Mode::Dark;
     const auto& power = app.power_status();
@@ -707,9 +793,9 @@ extern "C" void app_main(void) {
       avatar->speech().update(now, [&avatar_clock] { return avatar_clock->read(); }, wifi);
       avatar->set_power(app.power_status());
       const bool animate = mode == alter_ego::Idle::Mode::Animated;
-      avatar->draw(g_amoled, now, animate);
+      avatar->draw(g_amoled, now, animate, "Kein Projekt", "Keine Aufgabe", timer_alarm);
       if (was_dark) g_amoled.set_backlight(100);
-      next_avatar_frame = now + (!avatar->network_page().visible() && (animate || avatar->spoons_moving(now)) ? 50 : 500);
+      next_avatar_frame = now + avatar->refresh_delay(now, animate);
     }
 #endif
   }

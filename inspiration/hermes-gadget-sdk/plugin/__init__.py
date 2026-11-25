@@ -12,7 +12,13 @@ PLATFORM_HINT = (
     "(roughly 25-40 characters per line, under ten lines) that often reads your replies aloud. "
     "The user usually speaks to it, so their message is a speech transcript and may contain "
     "recognition errors. Reply in plain conversational text: no Markdown, tables, code blocks "
-    "or links unless asked. Keep it to one to three short sentences unless the user wants more."
+    "or links unless asked. Keep it to one to three short sentences unless the user wants more. "
+    "On the configured StopWatch, use gadget_pomodoro for a 25- or 50-minute timer for "
+    "a project or work activity, even when the user just says 'Timer'. Send the project "
+    "and optional activity separately. Ask for the project if unclear or not found, "
+    "or the duration if missing. Never fall back to a plain timer after a Pomodoro error. "
+    "Only set plain_timer=true when the user explicitly wants a standalone timer without logging. "
+    "Report whether the timer, Work Session and GitHub push succeeded."
 )
 
 

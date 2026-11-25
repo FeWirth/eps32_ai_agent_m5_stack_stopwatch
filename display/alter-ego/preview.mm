@@ -26,7 +26,13 @@ static uint32_t milliseconds() {
 @interface AvatarView : NSView
 - (NSBitmapImageRep*)renderBitmap;
 - (void)showBatteryPreview;
+- (void)showLongMessagePreview:(BOOL)scrolled;
 - (void)showNetworkPreview;
+- (void)showPomodoroPreview;
+- (void)showRunningPomodoroPreview;
+- (void)showFinishedPomodoroPreview;
+- (void)showBreakPreview;
+- (void)refreshIfDue;
 @end
 
 @implementation AvatarView {
@@ -38,6 +44,7 @@ static uint32_t milliseconds() {
   int _manual;
   int _active;
   int _volume;
+  uint32_t _nextFrame;
 }
 
 - (void)showBatteryPreview {
@@ -47,11 +54,60 @@ static uint32_t milliseconds() {
   _avatar.touch(false, 233, 215, now);
 }
 
-- (void)showNetworkPreview {
+- (void)showLongMessagePreview:(BOOL)scrolled {
+  (void)[self renderBitmap];
+  _avatar.speech().show_message(
+      "Hermes hat die Notiz für heute vorbereitet.\n\n"
+      "Die Messwerte stehen im Projektordner. Die ersten drei Versuche sind ausgewertet "
+      "und die Ergebnisse sind in der Tabelle verlinkt.\n\n"
+      "Für morgen bleibt ein Schritt offen: Bitte die neue Messreihe mit denselben "
+      "Einstellungen wiederholen und die Abweichungen in der Tagesnotiz ergänzen.\n\n"
+      "Die vollständige Auswertung folgt danach.");
+  if (scrolled) {
+    const auto now = milliseconds();
+    _avatar.touch(true, 233, 375, now);
+    _avatar.touch(true, 233, 65, now + 10);
+    _avatar.touch(false, 0, 0, now + 20);
+  }
+}
+
+- (void)showPomodoroPreview {
   const uint32_t now = milliseconds();
   _avatar.touch(true, 340, 220, now);
   _avatar.touch(true, 145, 220, now);
   _avatar.touch(false, 0, 0, now);
+}
+
+- (void)showRunningPomodoroPreview {
+  [self showPomodoroPreview];
+  const auto start = milliseconds() - 10 * 60000u;
+  _avatar.touch(true, 233, 389, start);
+  _avatar.touch(false, 233, 389, start);
+}
+
+- (void)showFinishedPomodoroPreview {
+  const auto now = milliseconds();
+  _avatar.start_pomodoro(25, now - 25 * 60000u, "Felix Vault bauen", "Verbindung testen");
+  _avatar.update_pomodoro(now);
+}
+
+- (void)showBreakPreview {
+  [self showFinishedPomodoroPreview];
+  const auto now = milliseconds();
+  _avatar.touch(true, 160, 339, now);
+  _avatar.touch(false, 160, 339, now);
+}
+
+- (void)showNetworkPreview {
+  [self showPomodoroPreview];
+  [self showPomodoroPreview];
+}
+
+- (void)refreshIfDue {
+  if (_idle && (_idle->mode(milliseconds()) != _mode ||
+               static_cast<int32_t>(milliseconds() - _nextFrame) >= 0)) {
+    self.needsDisplay = YES;
+  }
 }
 
 - (NSBitmapImageRep*)renderBitmap {
@@ -79,6 +135,7 @@ static uint32_t milliseconds() {
   sample.battery_mv = 3964;
   sample.external_power = true;
   _avatar.set_power(sample);
+  if (_avatar.update_pomodoro(now) && _avatar.pomodoro_page().completion_pending()) _idle->wake(now);
   const auto mode = _idle->mode(now);
   if (mode != _mode) {
     _avatar.set_spoons_raised(mode == alter_ego::Idle::Mode::Animated, now,
@@ -88,7 +145,10 @@ static uint32_t milliseconds() {
   if (mode == alter_ego::Idle::Mode::Dark)
     std::fill_n(_screen.pixels, size * size, uint16_t{0});
   else
-    _avatar.draw(_screen, now, mode == alter_ego::Idle::Mode::Animated);
+    _avatar.draw(_screen, now, mode == alter_ego::Idle::Mode::Animated,
+                 "StopWatch", "UI-Konzept prüfen");
+  _nextFrame = now + (mode == alter_ego::Idle::Mode::Dark ? 10000 :
+      _avatar.refresh_delay(now, mode == alter_ego::Idle::Mode::Animated));
   auto* bitmap = [[NSBitmapImageRep alloc]
       initWithBitmapDataPlanes:nullptr pixelsWide:size pixelsHigh:size bitsPerSample:8
       samplesPerPixel:4 hasAlpha:YES isPlanar:NO colorSpaceName:NSDeviceRGBColorSpace
@@ -145,7 +205,13 @@ int main(int argc, const char** argv) {
     auto* view = [[AvatarView alloc] initWithFrame:bounds];
     if (argc == 2 || argc == 3) {
       if (argc == 3 && std::string_view(argv[2]) == "--battery") [view showBatteryPreview];
+      if (argc == 3 && std::string_view(argv[2]) == "--long-message") [view showLongMessagePreview:NO];
+      if (argc == 3 && std::string_view(argv[2]) == "--long-message-end") [view showLongMessagePreview:YES];
       if (argc == 3 && std::string_view(argv[2]) == "--network") [view showNetworkPreview];
+      if (argc == 3 && std::string_view(argv[2]) == "--pomodoro") [view showPomodoroPreview];
+      if (argc == 3 && std::string_view(argv[2]) == "--pomodoro-running") [view showRunningPomodoroPreview];
+      if (argc == 3 && std::string_view(argv[2]) == "--pomodoro-finished") [view showFinishedPomodoroPreview];
+      if (argc == 3 && std::string_view(argv[2]) == "--pomodoro-break") [view showBreakPreview];
       auto* png = [[view renderBitmap] representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
       NSError* error = nil;
       if ([png writeToFile:@(argv[1]) options:0 error:&error]) return 0;
@@ -165,8 +231,8 @@ int main(int argc, const char** argv) {
     [window center];
     [window makeKeyAndOrderFront:nil];
     [app activateIgnoringOtherApps:YES];
-    auto* timer = [NSTimer timerWithTimeInterval:1.0 / 24 repeats:YES block:^(NSTimer*) {
-      view.needsDisplay = YES;
+    auto* timer = [NSTimer timerWithTimeInterval:1.0 / 60 repeats:YES block:^(NSTimer*) {
+      [view refreshIfDue];
     }];
     [NSRunLoop.mainRunLoop addTimer:timer forMode:NSRunLoopCommonModes];
     [app run];

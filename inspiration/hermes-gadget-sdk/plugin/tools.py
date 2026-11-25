@@ -11,7 +11,11 @@ chat ("show the grocery list on the kitchen gadget").
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
+import os
+import subprocess
+from pathlib import Path
 import threading
 from typing import Any
 
@@ -60,6 +64,8 @@ ACTION_SCHEMA = {
         "properties": {
             "action": {"type": "string", "description": "Action name as listed by the device."},
             "args": {"type": "object", "description": "Arguments matching the action's parameter schema."},
+            "plain_timer": {"type": "boolean", "description": "Set true only for an explicitly requested "
+                            "standalone 25/50-minute timer without a Work Session on StopWatch."},
             "device": _DEVICE_PARAM,
         },
         "required": ["action"],
@@ -173,11 +179,97 @@ def gadget_action(args: dict, **_kw) -> str:
     call_args = args.get("args") or {}
     if not isinstance(call_args, dict):
         return _error("args must be an object")
+    if session.device_id == os.getenv("GADGET_POMODORO_DEVICE"):
+        if action == "pomodoro.start" or (
+            action == "timer.start" and str(call_args.get("seconds")) in {"1500", "3000", "1500.0", "3000.0"}
+            and args.get("plain_timer") is not True
+        ):
+            return _error("Nutze gadget_pomodoro für 25/50 Minuten mit Projekt und Vault-Log. "
+                          "Frag nach, falls das Projekt unklar ist. Nur bei ausdrücklich gewünschtem "
+                          "reinem Timer ohne Vault-Eintrag ist plain_timer=true möglich.")
     try:
         result = _run(adapter, session.invoke_action(action, call_args, timeout=CALL_TIMEOUT_S - 2))
     except Exception as exc:
         return _error(str(exc))
     return json.dumps({"success": True, "device": session.name, "action": action, "result": result})
+
+
+POMODORO_SCHEMA = {
+    "name": "gadget_pomodoro",
+    "description": "Use for a 25- or 50-minute project timer on the StopWatch even if called a timer. "
+                   "Start the timer, log it in Obsidian with a linked Work Session, and publish to GitHub.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "minutes": {"type": "integer", "enum": [25, 50]},
+            "project": {"type": "string", "description": "Project name or alias as spoken"},
+            "activity": {"type": "string", "description": "Optional activity or task as spoken"},
+            "log_tag": {"type": "string", "description": "Activity tag from the vault rules, e.g. log/coding"},
+        },
+        "required": ["minutes", "project"],
+    },
+}
+
+
+def gadget_pomodoro(args: dict, **_kw) -> str:
+    from gateway import session_context
+    from gateway.session_context import get_session_env
+
+    from . import pomodoro
+
+    adapter = _adapter()
+    vault = os.getenv("GADGET_POMODORO_VAULT")
+    if adapter is None or adapter.hub is None or not vault:
+        return _error("Pomodoro ist im Gateway nicht eingerichtet.")
+    if get_session_env("HERMES_SESSION_PLATFORM") != "gadget":
+        return _error("Pomodoro von der StopWatch aus starten.")
+    session = adapter.hub.get(get_session_env("HERMES_SESSION_CHAT_ID"))
+    if (session is None or session.device_id != os.getenv("GADGET_POMODORO_DEVICE")
+            or not adapter._still_trusted(session)):
+        return _error("Diese StopWatch ist für Pomodoro nicht freigegeben.")
+    # The agent's request context survives overlapping device turns and delayed speech.
+    # The adapter's display lifecycle is shared by all requests on this connection.
+    current_event = getattr(session_context, "_SESSION_TURN_EVENT", None)
+    event = current_event.get() if current_event is not None else None
+    turn = (getattr(event, "message_id", None) or get_session_env("HERMES_SESSION_MESSAGE_ID")
+            or adapter._turns.get(session.device_id))
+    if not turn:
+        return _error("Kein aktiver StopWatch-Sprachturn.")
+    minutes = args.get("minutes")
+    if type(minutes) is not int or minutes not in (25, 50):
+        return _error("Soll der Pomodoro 25 oder 50 Minuten laufen?")
+    vault = Path(vault)
+    activity = " ".join(str(args.get("activity") or "").split())[:300]
+    receipt = hashlib.sha256(f"{session.device_id}:{turn}".encode()).hexdigest()[:16]
+    try:
+        project = pomodoro.resolve(vault, str(args.get("project") or ""))
+        area_tag, log_tag = pomodoro.tags(vault, project[2], args.get("log_tag"))
+    except (OSError, ValueError) as exc:
+        return _error(str(exc))
+    try:
+        _run(adapter, session.invoke_action("pomodoro.start", {
+            "minutes": minutes,
+            "project": textfmt.for_device(project[1], "ascii")[:96],
+            "activity": textfmt.for_device(activity or "Fokusarbeit", "ascii")[:96],
+            "receipt": receipt,
+        }))
+    except Exception as exc:
+        return _error(f"Timerstart konnte nicht bestätigt werden: {exc}")
+    try:
+        note = pomodoro.record(vault, project, activity, minutes, receipt, area_tag, log_tag)
+    except (OSError, ValueError) as exc:
+        return json.dumps({"success": False, "timer_started": True,
+                           "error": f"Timer läuft. Obsidian-Eintrag fehlgeschlagen: {exc}"})
+    result = {"success": True, "minutes": minutes, "project": project[1], "work_session": note}
+    if os.getenv("GADGET_POMODORO_GIT_SYNC") == "1":
+        try:
+            pomodoro.publish(vault, note)
+        except (OSError, ValueError, subprocess.SubprocessError) as exc:
+            result["github_synced"] = False
+            result["sync_error"] = f"Eintrag auf dem Pi gespeichert. GitHub-Sync offen: {exc}"
+        else:
+            result["github_synced"] = True
+    return json.dumps(result)
 
 
 def available() -> bool:
@@ -190,6 +282,7 @@ def register_tools(ctx) -> None:
         (DEVICES_SCHEMA, gadget_devices, "📟"),
         (DISPLAY_SCHEMA, gadget_display, "🖥️"),
         (ACTION_SCHEMA, gadget_action, "🎛️"),
+        (POMODORO_SCHEMA, gadget_pomodoro, "⏱️"),
     ):
         ctx.register_tool(
             name=schema["name"], toolset=TOOLSET, schema=schema, handler=handler,
